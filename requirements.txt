@@ -1,0 +1,6 @@
+flask
+gunicorn
+base58
+coincurve
+bech32
+reportlab
