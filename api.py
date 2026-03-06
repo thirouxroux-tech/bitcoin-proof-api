@@ -1,80 +1,92 @@
-import os
-from flask import Flask, request, jsonify
-from core import verify_signature
-from certificate import generate_certificate
-from datetime import datetime
+from fastapi import FastAPI, Header, HTTPException
+from pydantic import BaseModel
+from bitcoin.signmessage import VerifyMessage, BitcoinMessage
+from bitcoin.wallet import CBitcoinAddress
 import hashlib
-import uuid
+import os
+from datetime import datetime
+from reportlab.pdfgen import canvas
 
-app = Flask(__name__)
+app = FastAPI()
 
-# 🔐 API KEY via variable d’environnement
-API_KEY = os.environ.get("API_KEY")
+API_KEY = os.getenv("API_KEY", "dev_key_123456")
 
+class VerifyRequest(BaseModel):
+    address: str
+    message: str
+    signature: str
 
-# 🌍 Route accueil
-@app.route("/")
-def home():
-    return jsonify({
-        "service": "Bitcoin Proof Engine API",
-        "status": "online",
-        "version": "2.0",
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    })
+def generate_certificate(data, verification_id):
+    filename = f"certificate_{verification_id}.pdf"
 
+    c = canvas.Canvas(filename)
+    c.setFont("Helvetica", 12)
 
-# 🔎 Route vérification
-@app.route("/verify", methods=["POST"])
-def verify():
+    c.drawString(100, 750, "Bitcoin Proof Certificate")
+    c.drawString(100, 720, f"Verification ID: {verification_id}")
+    c.drawString(100, 700, f"Address: {data['address']}")
+    c.drawString(100, 680, f"Message: {data['message']}")
+    c.drawString(100, 660, f"Status: {data['status']}")
+    c.drawString(100, 640, f"Timestamp: {data['timestamp']}")
+    c.drawString(100, 620, f"Message Hash: {data['message_hash']}")
 
-    # 🔐 Vérification clé API
-    client_key = request.headers.get("X-API-KEY")
-    if not API_KEY or client_key != API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
+    c.save()
 
-    data = request.get_json()
+    return filename
 
-    if not data:
-        return jsonify({"error": "Missing JSON body"}), 400
+@app.get("/")
+def root():
+    return {"status": "Bitcoin Proof API running"}
 
-    address = data.get("address")
-    message = data.get("message")
-    signature = data.get("signature")
+@app.post("/verify")
+def verify_signature(req: VerifyRequest, x_api_key: str = Header(None)):
 
-    if not address or not message or not signature:
-        return jsonify({"error": "Missing parameters"}), 400
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    # 🔍 Vérification signature
-    is_valid, address_type = verify_signature(address, message, signature)
+    try:
+        message = BitcoinMessage(req.message)
+        address = CBitcoinAddress(req.address)
 
-    if not is_valid:
-        return jsonify({"status": "invalid"}), 400
+        valid = VerifyMessage(address, message, req.signature)
 
-    # 🧮 Hash message
-    message_hash = hashlib.sha256(message.encode()).hexdigest()
+        message_hash = hashlib.sha256(req.message.encode()).hexdigest()
 
-    # 🆔 ID unique
-    verification_id = str(uuid.uuid4())[:8]
+        addr_type = "Unknown"
 
-    # 📄 Génération certificat PDF
-    certificate_file = generate_certificate(
-        address,
-        message,
-        signature,
-        message_hash,
-        address_type,
-        verification_id
-    )
+        if req.address.startswith("1"):
+            addr_type = "Legacy (P2PKH)"
+        elif req.address.startswith("3"):
+            addr_type = "P2SH"
+        elif req.address.startswith("bc1"):
+            addr_type = "SegWit"
 
-    return jsonify({
-        "status": "valid",
-        "type": address_type,
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-        "message_hash": message_hash,
-        "verification_id": verification_id,
-        "certificate_file": certificate_file
-    })
+        verification_id = hashlib.sha256(
+            (req.address + req.message + req.signature).encode()
+        ).hexdigest()[:8]
 
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+        status = "valid" if valid else "invalid"
+
+        data = {
+            "address": req.address,
+            "message": req.message,
+            "status": status,
+            "timestamp": timestamp,
+            "message_hash": message_hash
+        }
+
+        certificate_file = generate_certificate(data, verification_id)
+
+        return {
+            "status": status,
+            "type": addr_type,
+            "timestamp": timestamp,
+            "message_hash": message_hash,
+            "verification_id": verification_id,
+            "certificate_file": certificate_file
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

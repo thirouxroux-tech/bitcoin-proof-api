@@ -4,5 +4,8 @@ base58==2.1.1
 coincurve==18.0.0
 bech32==1.2.0
 reportlab==4.0.8
-
+fastapi
+uvicorn
+python-bitcoinlib
+reportlab
 
