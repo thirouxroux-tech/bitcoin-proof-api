@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<meta charset="UTF-8">
+<title>BitcoinProof</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:40px;
+}
+
+.container{
+background:#1e293b;
+padding:30px;
+border-radius:10px;
+width:500px;
+margin:auto;
+}
+
+h1{
+color:#f7931a;
+}
+
+input{
+width:90%;
+padding:10px;
+margin:10px;
+border-radius:5px;
+border:none;
+}
+
+button{
+background:#f7931a;
+border:none;
+padding:12px 20px;
+border-radius:5px;
+cursor:pointer;
+font-size:16px;
+}
+
+button:hover{
+background:#ff9f2e;
+}
+
+#result{
+margin-top:20px;
+background:#0f172a;
+padding:15px;
+border-radius:6px;
+}
+
+a{
+color:#22c55e;
+text-decoration:none;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>BitcoinProof</h1>
+
+<p>Verify ownership of a Bitcoin address</p>
+
+<input id="address" placeholder="Bitcoin Address">
+
+<input id="message" placeholder="Signed Message">
+
+<input id="signature" placeholder="Signature">
+
+<button onclick="verify()">Verify Signature</button>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+
+async function verify(){
+
+const address=document.getElementById("address").value
+const message=document.getElementById("message").value
+const signature=document.getElementById("signature").value
+
+document.getElementById("result").innerHTML="Verifying..."
+
+try{
+
+const response=await fetch(
+"https://bitcoin-proof-api.onrender.com/verify",
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+"X-API-KEY":"dev_key_123456"
+},
+body:JSON.stringify({
+address:address,
+message:message,
+signature:signature
+})
+})
+
+const data=await response.json()
+
+document.getElementById("result").innerHTML=
+`
+<h3>Status: ${data.status}</h3>
+<p>Type: ${data.type}</p>
+<p>Verification ID: ${data.verification_id}</p>
+<p>Message Hash: ${data.message_hash}</p>
+<a href="https://bitcoin-proof-api.onrender.com/${data.certificate_file}" target="_blank">Download Certificate</a>
+`
+
+}catch(error){
+
+document.getElementById("result").innerHTML="Error contacting API"
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
+
