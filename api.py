@@ -98,3 +98,52 @@ def verify_signature(req: VerifyRequest, x_api_key: str = Header(None)):
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+from fastapi.responses import HTMLResponse
+
+@app.get("/proof/{verification_id}", response_class=HTMLResponse)
+def view_proof(verification_id: str):
+
+    return f"""
+    <html>
+    <head>
+    <title>BitcoinProof Verification</title>
+    <style>
+    body {{
+        font-family: Arial;
+        background:#0f172a;
+        color:white;
+        text-align:center;
+        padding:40px;
+    }}
+    .box {{
+        background:#1e293b;
+        padding:30px;
+        border-radius:10px;
+        width:500px;
+        margin:auto;
+    }}
+    h1 {{
+        color:#f7931a;
+    }}
+    </style>
+    </head>
+
+    <body>
+
+    <div class="box">
+
+    <h1>BitcoinProof</h1>
+
+    <h2>Verification</h2>
+
+    <p>Verification ID :</p>
+
+    <h3>{verification_id}</h3>
+
+    <p>This certificate proves that a Bitcoin signed message was verified.</p>
+
+    </div>
+
+    </body>
+    </html>
+    """
