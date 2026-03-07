@@ -8,7 +8,15 @@ from datetime import datetime
 from reportlab.pdfgen import canvas
 
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 API_KEY = os.getenv("API_KEY", "dev_key_123456")
 
 class VerifyRequest(BaseModel):
