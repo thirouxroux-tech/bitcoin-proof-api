@@ -1,149 +1,285 @@
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
+
+import hashlib
+import uuid
+import os
+import qrcode
+
 from bitcoin.signmessage import VerifyMessage, BitcoinMessage
 from bitcoin.wallet import CBitcoinAddress
-import hashlib
-import os
-from datetime import datetime
+
 from reportlab.pdfgen import canvas
 
 app = FastAPI()
-from fastapi.middleware.cors import CORSMiddleware
+
+# CORS (permet au site web d'appeler l'API)
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+CORSMiddleware,
+allow_origins=["*"],
+allow_credentials=True,
+allow_methods=["*"],
+allow_headers=["*"],
 )
-API_KEY = os.getenv("API_KEY", "dev_key_123456")
+
+API_KEY = "dev_key_123456"
+
+CERT_FOLDER = "certificates"
+
+os.makedirs(CERT_FOLDER, exist_ok=True)
+
+# base mémoire simple pour les preuves
+
+proofs_db = []
 
 class VerifyRequest(BaseModel):
-    address: str
-    message: str
-    signature: str
-
-def generate_certificate(data, verification_id):
-    filename = f"certificate_{verification_id}.pdf"
-
-    c = canvas.Canvas(filename)
-    c.setFont("Helvetica", 12)
-
-    c.drawString(100, 750, "Bitcoin Proof Certificate")
-    c.drawString(100, 720, f"Verification ID: {verification_id}")
-    c.drawString(100, 700, f"Address: {data['address']}")
-    c.drawString(100, 680, f"Message: {data['message']}")
-    c.drawString(100, 660, f"Status: {data['status']}")
-    c.drawString(100, 640, f"Timestamp: {data['timestamp']}")
-    c.drawString(100, 620, f"Message Hash: {data['message_hash']}")
-
-    c.save()
-
-    return filename
+address: str
+message: str
+signature: str
 
 @app.get("/")
 def root():
-    return {"status": "Bitcoin Proof API running"}
+return {"status": "Bitcoin Proof API running"}
 
 @app.post("/verify")
-def verify_signature(req: VerifyRequest, x_api_key: str = Header(None)):
+def verify_signature(data: VerifyRequest, x_api_key: str = Header(None)):
 
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+```
+if x_api_key != API_KEY:
+    raise HTTPException(status_code=401, detail="Invalid API key")
 
-    try:
-        message = BitcoinMessage(req.message)
-        address = CBitcoinAddress(req.address)
+try:
 
-        valid = VerifyMessage(address, message, req.signature)
+    message = BitcoinMessage(data.message)
 
-        message_hash = hashlib.sha256(req.message.encode()).hexdigest()
+    verified = VerifyMessage(
+        CBitcoinAddress(data.address),
+        message,
+        data.signature
+    )
 
-        addr_type = "Unknown"
+    if not verified:
+        return {"status": "invalid"}
 
-        if req.address.startswith("1"):
-            addr_type = "Legacy (P2PKH)"
-        elif req.address.startswith("3"):
-            addr_type = "P2SH"
-        elif req.address.startswith("bc1"):
-            addr_type = "SegWit"
+    verification_id = str(uuid.uuid4())[:8]
 
-        verification_id = hashlib.sha256(
-            (req.address + req.message + req.signature).encode()
-        ).hexdigest()[:8]
+    message_hash = hashlib.sha256(data.message.encode()).hexdigest()
 
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    proof_url = f"https://bitcoin-proof-api.onrender.com/proof/{verification_id}"
 
-        status = "valid" if valid else "invalid"
+    # génération QR code
 
-        data = {
-            "address": req.address,
-            "message": req.message,
-            "status": status,
-            "timestamp": timestamp,
-            "message_hash": message_hash
-        }
+    qr = qrcode.make(proof_url)
 
-        certificate_file = generate_certificate(data, verification_id)
+    qr_path = f"{CERT_FOLDER}/qr_{verification_id}.png"
 
-        return {
-            "status": status,
-            "type": addr_type,
-            "timestamp": timestamp,
-            "message_hash": message_hash,
-            "verification_id": verification_id,
-            "certificate_file": certificate_file
-        }
+    qr.save(qr_path)
 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-from fastapi.responses import HTMLResponse
+    # génération certificat PDF
+
+    pdf_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
+
+    c = canvas.Canvas(pdf_file)
+
+    c.setFont("Helvetica", 16)
+    c.drawString(150, 750, "Bitcoin Proof Certificate")
+
+    c.setFont("Helvetica", 12)
+
+    c.drawString(50, 700, f"Verification ID: {verification_id}")
+    c.drawString(50, 670, f"Bitcoin Address: {data.address}")
+    c.drawString(50, 640, f"Message: {data.message}")
+    c.drawString(50, 610, f"Message Hash: {message_hash}")
+
+    c.drawImage(qr_path, 230, 420, width=120, height=120)
+
+    c.drawString(200, 400, "Scan to verify this proof")
+
+    c.save()
+
+    # sauvegarde dans l'explorateur
+
+    proofs_db.append({
+        "id": verification_id,
+        "address": data.address,
+        "message_hash": message_hash
+    })
+
+    return {
+        "status": "valid",
+        "type": "Legacy (P2PKH)",
+        "verification_id": verification_id,
+        "message_hash": message_hash,
+        "certificate_file": f"/certificate/{verification_id}"
+    }
+
+except Exception as e:
+
+    return {"status": "error", "detail": str(e)}
+```
+
+@app.get("/certificate/{verification_id}")
+def get_certificate(verification_id: str):
+
+```
+pdf_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
+
+if not os.path.exists(pdf_file):
+    raise HTTPException(status_code=404, detail="Certificate not found")
+
+return FileResponse(pdf_file)
+```
 
 @app.get("/proof/{verification_id}", response_class=HTMLResponse)
 def view_proof(verification_id: str):
 
-    return f"""
-    <html>
-    <head>
-    <title>BitcoinProof Verification</title>
-    <style>
-    body {{
-        font-family: Arial;
-        background:#0f172a;
-        color:white;
-        text-align:center;
-        padding:40px;
-    }}
-    .box {{
-        background:#1e293b;
-        padding:30px;
-        border-radius:10px;
-        width:500px;
-        margin:auto;
-    }}
-    h1 {{
-        color:#f7931a;
-    }}
-    </style>
-    </head>
+```
+return f"""
+<html>
 
-    <body>
+<head>
 
-    <div class="box">
+<title>BitcoinProof Verification</title>
 
-    <h1>BitcoinProof</h1>
+<style>
 
-    <h2>Verification</h2>
+body {{
+    font-family: Arial;
+    background:#0f172a;
+    color:white;
+    text-align:center;
+    padding:40px;
+}}
 
-    <p>Verification ID :</p>
+.box {{
+    background:#1e293b;
+    padding:30px;
+    border-radius:10px;
+    width:500px;
+    margin:auto;
+}}
 
-    <h3>{verification_id}</h3>
+h1 {{
+    color:#f7931a;
+}}
 
-    <p>This certificate proves that a Bitcoin signed message was verified.</p>
+</style>
 
-    </div>
+</head>
 
-    </body>
-    </html>
+<body>
+
+<div class="box">
+
+<h1>BitcoinProof</h1>
+
+<h2>Verification Proof</h2>
+
+<p>Verification ID :</p>
+
+<h3>{verification_id}</h3>
+
+<p>This certificate confirms that a Bitcoin signed message was verified.</p>
+
+</div>
+
+</body>
+
+</html>
+"""
+```
+
+@app.get("/proofs", response_class=HTMLResponse)
+def list_proofs():
+
+```
+html = """
+<html>
+
+<head>
+
+<title>BitcoinProof Explorer</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+padding:40px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid #333;
+}
+
+th{
+color:#f7931a;
+}
+
+a{
+color:#22c55e;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>BitcoinProof Explorer</h1>
+
+<table>
+
+<tr>
+<th>ID</th>
+<th>Address</th>
+<th>Message Hash</th>
+<th>Proof</th>
+<th>Certificate</th>
+</tr>
+"""
+
+for p in proofs_db:
+
+    html += f"""
+    <tr>
+
+    <td>{p['id']}</td>
+
+    <td>{p['address']}</td>
+
+    <td>{p['message_hash']}</td>
+
+    <td>
+    <a href="/proof/{p['id']}">view</a>
+    </td>
+
+    <td>
+    <a href="/certificate/{p['id']}">download</a>
+    </td>
+
+    </tr>
     """
+
+html += """
+</table>
+
+</body>
+
+</html>
+"""
+
+return html
+```
+
+
