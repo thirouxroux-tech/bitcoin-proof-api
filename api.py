@@ -7,6 +7,7 @@ import hashlib
 import uuid
 import os
 import qrcode
+import subprocess
 
 from bitcoin.signmessage import VerifyMessage, BitcoinMessage
 from bitcoin.wallet import CBitcoinAddress
@@ -99,7 +100,18 @@ try:
     c.drawString(200, 400, "Scan to verify this proof")
 
     c.save()
+# ancrage OpenTimestamps (Bitcoin)
 
+timestamp_file = pdf_file + ".ots"
+
+try:
+    subprocess.run([
+        "ots",
+        "stamp",
+        pdf_file
+    ])
+except:
+    pass
     # sauvegarde dans l'explorateur
 
     proofs_db.append({
@@ -108,13 +120,14 @@ try:
         "message_hash": message_hash
     })
 
-    return {
-        "status": "valid",
-        "type": "Legacy (P2PKH)",
-        "verification_id": verification_id,
-        "message_hash": message_hash,
-        "certificate_file": f"/certificate/{verification_id}"
-    }
+ return {
+    "status": "valid",
+    "type": "Legacy (P2PKH)",
+    "verification_id": verification_id,
+    "message_hash": message_hash,
+    "certificate_file": f"/certificate/{verification_id}",
+    "timestamp_proof": f"/timestamp/{verification_id}"
+}
 
 except Exception as e:
 
