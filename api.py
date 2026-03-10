@@ -294,5 +294,28 @@ html += """
 
 return html
 ```
+@app.get("/verify_timestamp/{verification_id}")
+def verify_timestamp(verification_id: str):
 
+    ots_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf.ots"
+
+    if not os.path.exists(ots_file):
+        return {"status": "no timestamp yet"}
+
+    try:
+
+        result = subprocess.run(
+            ["ots", "verify", ots_file],
+            capture_output=True,
+            text=True
+        )
+
+        return {
+            "verification_id": verification_id,
+            "result": result.stdout
+        }
+
+    except Exception as e:
+
+        return {"error": str(e)}
 
