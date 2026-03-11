@@ -8,15 +8,15 @@ import uuid
 import os
 import subprocess
 import qrcode
+import sqlite3
 
 from bitcoin.signmessage import VerifyMessage, BitcoinMessage
 from bitcoin.wallet import CBitcoinAddress
-
 from reportlab.pdfgen import canvas
 
 app = FastAPI()
 
-# CORS (permet au site web d'appeler l'API)
+# CORS
 
 app.add_middleware(
 CORSMiddleware,
@@ -29,21 +29,90 @@ allow_headers=["*"],
 API_KEY = "dev_key_123456"
 
 CERT_FOLDER = "certificates"
-
 os.makedirs(CERT_FOLDER, exist_ok=True)
 
-# base mémoire simple pour les preuves
+# DATABASE
 
-proofs_db = []
+conn = sqlite3.connect("bitcoinproof.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+email TEXT UNIQUE,
+password TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS proofs(
+id TEXT,
+address TEXT,
+message_hash TEXT,
+user_id INTEGER
+)
+""")
+
+conn.commit()
 
 class VerifyRequest(BaseModel):
 address: str
 message: str
 signature: str
+user_id: int | None = None
+
+class UserRegister(BaseModel):
+email: str
+password: str
+
+class UserLogin(BaseModel):
+email: str
+password: str
 
 @app.get("/")
 def root():
 return {"status": "Bitcoin Proof API running"}
+
+@app.post("/register")
+def register(user: UserRegister):
+
+```
+try:
+
+    cursor.execute(
+        "INSERT INTO users(email,password) VALUES (?,?)",
+        (user.email, user.password)
+    )
+
+    conn.commit()
+
+    return {"status": "user created"}
+
+except:
+
+    return {"status": "email already exists"}
+```
+
+@app.post("/login")
+def login(user: UserLogin):
+
+```
+cursor.execute(
+    "SELECT id FROM users WHERE email=? AND password=?",
+    (user.email, user.password)
+)
+
+result = cursor.fetchone()
+
+if result:
+
+    return {
+        "status": "login success",
+        "user_id": result[0]
+    }
+
+return {"status": "invalid login"}
+```
 
 @app.post("/verify")
 def verify_signature(data: VerifyRequest, x_api_key: str = Header(None)):
@@ -71,15 +140,10 @@ try:
 
     proof_url = f"https://bitcoin-proof-api.onrender.com/proof/{verification_id}"
 
-    # génération QR code
-
     qr = qrcode.make(proof_url)
 
     qr_path = f"{CERT_FOLDER}/qr_{verification_id}.png"
-
     qr.save(qr_path)
-
-    # génération certificat PDF
 
     pdf_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
 
@@ -101,30 +165,23 @@ try:
 
     c.save()
 
-    # OpenTimestamps anchor
-
-    timestamp_file = pdf_file + ".ots"
-
     try:
         subprocess.run(["ots", "stamp", pdf_file])
     except:
         pass
 
-    # sauvegarde explorateur
+    cursor.execute(
+        "INSERT INTO proofs(id,address,message_hash,user_id) VALUES (?,?,?,?)",
+        (verification_id, data.address, message_hash, data.user_id)
+    )
 
-    proofs_db.append({
-        "id": verification_id,
-        "address": data.address,
-        "message_hash": message_hash
-    })
+    conn.commit()
 
     return {
         "status": "valid",
-        "type": "Legacy (P2PKH)",
         "verification_id": verification_id,
         "message_hash": message_hash,
-        "certificate_file": f"/certificate/{verification_id}",
-        "timestamp_proof": f"/timestamp/{verification_id}"
+        "certificate": f"/certificate/{verification_id}"
     }
 
 except Exception as e:
@@ -142,18 +199,6 @@ if not os.path.exists(pdf_file):
     raise HTTPException(status_code=404, detail="Certificate not found")
 
 return FileResponse(pdf_file)
-```
-
-@app.get("/timestamp/{verification_id}")
-def get_timestamp(verification_id: str):
-
-```
-ots_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf.ots"
-
-if not os.path.exists(ots_file):
-    raise HTTPException(status_code=404, detail="Timestamp proof not found")
-
-return FileResponse(ots_file)
 ```
 
 @app.get("/verify_timestamp/{verification_id}")
@@ -183,6 +228,30 @@ except Exception as e:
     return {"error": str(e)}
 ```
 
+@app.get("/user_proofs/{user_id}")
+def user_proofs(user_id: int):
+
+```
+cursor.execute(
+    "SELECT id,address,message_hash FROM proofs WHERE user_id=?",
+    (user_id,)
+)
+
+rows = cursor.fetchall()
+
+proofs = []
+
+for r in rows:
+
+    proofs.append({
+        "verification_id": r[0],
+        "address": r[1],
+        "message_hash": r[2]
+    })
+
+return proofs
+```
+
 @app.get("/proof/{verification_id}", response_class=HTMLResponse)
 def view_proof(verification_id: str):
 
@@ -191,7 +260,6 @@ return f"""
 <html>
 
 <head>
-
 <title>BitcoinProof Verification</title>
 
 <style>
@@ -241,95 +309,4 @@ h1 {{
 </html>
 """
 ```
-
-@app.get("/proofs", response_class=HTMLResponse)
-def list_proofs():
-
-```
-html = """
-<html>
-
-<head>
-
-<title>BitcoinProof Explorer</title>
-
-<style>
-
-body{
-font-family:Arial;
-background:#0f172a;
-color:white;
-padding:40px;
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-}
-
-th,td{
-padding:10px;
-border-bottom:1px solid #333;
-}
-
-th{
-color:#f7931a;
-}
-
-a{
-color:#22c55e;
-}
-
-</style>
-
-</head>
-
-<body>
-
-<h1>BitcoinProof Explorer</h1>
-
-<table>
-
-<tr>
-<th>ID</th>
-<th>Address</th>
-<th>Message Hash</th>
-<th>Proof</th>
-<th>Certificate</th>
-</tr>
-"""
-
-for p in proofs_db:
-
-    html += f"""
-    <tr>
-
-    <td>{p['id']}</td>
-
-    <td>{p['address']}</td>
-
-    <td>{p['message_hash']}</td>
-
-    <td>
-    <a href="/proof/{p['id']}">view</a>
-    </td>
-
-    <td>
-    <a href="/certificate/{p['id']}">download</a>
-    </td>
-
-    </tr>
-    """
-
-html += """
-</table>
-
-</body>
-
-</html>
-"""
-
-return html
-```
-
 
