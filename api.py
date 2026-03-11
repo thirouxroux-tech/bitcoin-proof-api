@@ -294,8 +294,42 @@ color:#22c55e;
 <th>ID</th>
 <th>Address</th>
 <th>Message Hash</th>
-```
+<th>Proof</th>
+<th>Certificate</th>
+</tr>
+"""
 
-Render
+for p in proofs_db:
+
+    html += f"""
+    <tr>
+
+    <td>{p['id']}</td>
+
+    <td>{p['address']}</td>
+
+    <td>{p['message_hash']}</td>
+
+    <td>
+    <a href="/proof/{p['id']}">view</a>
+    </td>
+
+    <td>
+    <a href="/certificate/{p['id']}">download</a>
+    </td>
+
+    </tr>
+    """
+
+html += """
+</table>
+
+</body>
+
+</html>
+"""
+
+return html
+```
 
 
