@@ -6,8 +6,8 @@ from pydantic import BaseModel
 import hashlib
 import uuid
 import os
-import qrcode
 import subprocess
+import qrcode
 
 from bitcoin.signmessage import VerifyMessage, BitcoinMessage
 from bitcoin.wallet import CBitcoinAddress
@@ -100,19 +100,17 @@ try:
     c.drawString(200, 400, "Scan to verify this proof")
 
     c.save()
-# ancrage OpenTimestamps (Bitcoin)
 
-timestamp_file = pdf_file + ".ots"
+    # OpenTimestamps anchor
 
-try:
-    subprocess.run([
-        "ots",
-        "stamp",
-        pdf_file
-    ])
-except:
-    pass
-    # sauvegarde dans l'explorateur
+    timestamp_file = pdf_file + ".ots"
+
+    try:
+        subprocess.run(["ots", "stamp", pdf_file])
+    except:
+        pass
+
+    # sauvegarde explorateur
 
     proofs_db.append({
         "id": verification_id,
@@ -120,14 +118,14 @@ except:
         "message_hash": message_hash
     })
 
- return {
-    "status": "valid",
-    "type": "Legacy (P2PKH)",
-    "verification_id": verification_id,
-    "message_hash": message_hash,
-    "certificate_file": f"/certificate/{verification_id}",
-    "timestamp_proof": f"/timestamp/{verification_id}"
-}
+    return {
+        "status": "valid",
+        "type": "Legacy (P2PKH)",
+        "verification_id": verification_id,
+        "message_hash": message_hash,
+        "certificate_file": f"/certificate/{verification_id}",
+        "timestamp_proof": f"/timestamp/{verification_id}"
+    }
 
 except Exception as e:
 
@@ -144,6 +142,45 @@ if not os.path.exists(pdf_file):
     raise HTTPException(status_code=404, detail="Certificate not found")
 
 return FileResponse(pdf_file)
+```
+
+@app.get("/timestamp/{verification_id}")
+def get_timestamp(verification_id: str):
+
+```
+ots_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf.ots"
+
+if not os.path.exists(ots_file):
+    raise HTTPException(status_code=404, detail="Timestamp proof not found")
+
+return FileResponse(ots_file)
+```
+
+@app.get("/verify_timestamp/{verification_id}")
+def verify_timestamp(verification_id: str):
+
+```
+ots_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf.ots"
+
+if not os.path.exists(ots_file):
+    return {"status": "no timestamp yet"}
+
+try:
+
+    result = subprocess.run(
+        ["ots", "verify", ots_file],
+        capture_output=True,
+        text=True
+    )
+
+    return {
+        "verification_id": verification_id,
+        "result": result.stdout
+    }
+
+except Exception as e:
+
+    return {"error": str(e)}
 ```
 
 @app.get("/proof/{verification_id}", response_class=HTMLResponse)
@@ -257,65 +294,8 @@ color:#22c55e;
 <th>ID</th>
 <th>Address</th>
 <th>Message Hash</th>
-<th>Proof</th>
-<th>Certificate</th>
-</tr>
-"""
-
-for p in proofs_db:
-
-    html += f"""
-    <tr>
-
-    <td>{p['id']}</td>
-
-    <td>{p['address']}</td>
-
-    <td>{p['message_hash']}</td>
-
-    <td>
-    <a href="/proof/{p['id']}">view</a>
-    </td>
-
-    <td>
-    <a href="/certificate/{p['id']}">download</a>
-    </td>
-
-    </tr>
-    """
-
-html += """
-</table>
-
-</body>
-
-</html>
-"""
-
-return html
 ```
-@app.get("/verify_timestamp/{verification_id}")
-def verify_timestamp(verification_id: str):
 
-    ots_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf.ots"
+Render
 
-    if not os.path.exists(ots_file):
-        return {"status": "no timestamp yet"}
-
-    try:
-
-        result = subprocess.run(
-            ["ots", "verify", ots_file],
-            capture_output=True,
-            text=True
-        )
-
-        return {
-            "verification_id": verification_id,
-            "result": result.stdout
-        }
-
-    except Exception as e:
-
-        return {"error": str(e)}
 
