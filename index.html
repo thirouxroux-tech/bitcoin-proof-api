@@ -1,9 +1,12 @@
+
 <!DOCTYPE html>
 
 <html>
 
 <head>
+
 <meta charset="UTF-8">
+
 <title>BitcoinProof</title>
 
 <style>
@@ -20,7 +23,7 @@ padding:40px;
 background:#1e293b;
 padding:30px;
 border-radius:10px;
-width:500px;
+width:600px;
 margin:auto;
 }
 
@@ -61,6 +64,11 @@ color:#22c55e;
 text-decoration:none;
 }
 
+.footer{
+margin-top:30px;
+opacity:0.6;
+}
+
 </style>
 
 </head>
@@ -71,7 +79,7 @@ text-decoration:none;
 
 <h1>BitcoinProof</h1>
 
-<p>Verify ownership of a Bitcoin address</p>
+<p>Verify ownership of a Bitcoin address using signed messages.</p>
 
 <input id="address" placeholder="Bitcoin Address">
 
@@ -83,6 +91,10 @@ text-decoration:none;
 
 <div id="result"></div>
 
+</div>
+
+<div class="footer">
+BitcoinProof – Cryptographic proof powered by Bitcoin
 </div>
 
 <script>
@@ -116,16 +128,28 @@ const data=await response.json()
 
 document.getElementById("result").innerHTML=
 `
-<h3>Status: ${data.status}</h3>
-<p>Type: ${data.type}</p>
-<p>Verification ID: ${data.verification_id}</p>
-<p>Message Hash: ${data.message_hash}</p>
-<a href="https://bitcoin-proof-api.onrender.com/${data.certificate_file}" target="_blank">Download Certificate</a>
+<h3>Status : ${data.status}</h3>
+
+<p>Verification ID : ${data.verification_id}</p>
+
+<p>Message Hash : ${data.message_hash}</p>
+
+<p>
+<a href="https://bitcoin-proof-api.onrender.com/certificate/${data.verification_id}" target="_blank">
+Download Certificate
+</a>
+</p>
+
+<p>
+<a href="https://bitcoin-proof-api.onrender.com/proof/${data.verification_id}" target="_blank">
+Public Verification Page
+</a>
+</p>
 `
 
 }catch(error){
 
-document.getElementById("result").innerHTML="Error contacting API"
+document.getElementById("result").innerHTML="API connection error"
 
 }
 
@@ -134,5 +158,6 @@ document.getElementById("result").innerHTML="Error contacting API"
 </script>
 
 </body>
+
 </html>
 
