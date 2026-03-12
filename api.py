@@ -28,15 +28,15 @@ allow_methods=["*"],
 allow_headers=["*"],
 )
 
-API_KEY="dev_key_123456"
+API_KEY = "dev_key_123456"
 
-CERT_FOLDER="certificates"
-os.makedirs(CERT_FOLDER,exist_ok=True)
+CERT_FOLDER = "certificates"
+os.makedirs(CERT_FOLDER, exist_ok=True)
 
 # DATABASE
 
-conn=sqlite3.connect("bitcoinproof.db",check_same_thread=False)
-cursor=conn.cursor()
+conn = sqlite3.connect("bitcoinproof.db", check_same_thread=False)
+cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users(
@@ -59,26 +59,26 @@ conn.commit()
 
 # MERKLE SYSTEM
 
-pending_hashes=[]
+pending_hashes = []
 
 def merkle_root(hashes):
 
 ```
-if len(hashes)==1:
+if len(hashes) == 1:
     return hashes[0]
 
-new_hashes=[]
+new_hashes = []
 
-for i in range(0,len(hashes),2):
+for i in range(0, len(hashes), 2):
 
-    left=hashes[i]
+    left = hashes[i]
 
-    if i+1<len(hashes):
-        right=hashes[i+1]
+    if i + 1 < len(hashes):
+        right = hashes[i+1]
     else:
-        right=left
+        right = left
 
-    combined=hashlib.sha256((left+right).encode()).hexdigest()
+    combined = hashlib.sha256((left + right).encode()).hexdigest()
 
     new_hashes.append(combined)
 
@@ -92,54 +92,54 @@ while True:
 
     time.sleep(600)
 
-    if len(pending_hashes)==0:
+    if len(pending_hashes) == 0:
         continue
 
-    root=merkle_root(pending_hashes)
+    root = merkle_root(pending_hashes)
 
-    filename="merkle_root.txt"
+    filename = "merkle_root.txt"
 
-    with open(filename,"w") as f:
+    with open(filename, "w") as f:
         f.write(root)
 
     try:
-        subprocess.run(["ots","stamp",filename])
+        subprocess.run(["ots", "stamp", filename])
     except:
         pass
 
-    print("Merkle anchored:",root)
+    print("Merkle anchored:", root)
 
     pending_hashes.clear()
 ```
 
-threading.Thread(target=anchor_merkle,daemon=True).start()
+threading.Thread(target=anchor_merkle, daemon=True).start()
 
 # MODELS
 
 class VerifyRequest(BaseModel):
-address:str
-message:str
-signature:str
-user_id:int|None=None
+address: str
+message: str
+signature: str
+user_id: int | None = None
 
 class UserRegister(BaseModel):
-email:str
-password:str
+email: str
+password: str
 
 class UserLogin(BaseModel):
-email:str
-password:str
+email: str
+password: str
 
 # ROOT
 
 @app.get("/")
 def root():
-return {"status":"BitcoinProof API running"}
+return {"status": "BitcoinProof API running"}
 
 # REGISTER
 
 @app.post("/register")
-def register(user:UserRegister):
+def register(user: UserRegister):
 
 ```
 try:
@@ -151,17 +151,17 @@ try:
 
     conn.commit()
 
-    return {"status":"user created"}
+    return {"status": "user created"}
 
 except:
 
-    return {"status":"email exists"}
+    return {"status": "email exists"}
 ```
 
 # LOGIN
 
 @app.post("/login")
-def login(user:UserLogin):
+def login(user: UserLogin):
 
 ```
 cursor.execute(
@@ -169,7 +169,7 @@ cursor.execute(
 (user.email,user.password)
 )
 
-result=cursor.fetchone()
+result = cursor.fetchone()
 
 if result:
 
@@ -184,17 +184,17 @@ return {"status":"invalid login"}
 # VERIFY BITCOIN SIGNATURE
 
 @app.post("/verify")
-def verify(data:VerifyRequest,x_api_key:str=Header(None)):
+def verify(data:VerifyRequest, x_api_key:str = Header(None)):
 
 ```
-if x_api_key!=API_KEY:
-    raise HTTPException(status_code=401,detail="Invalid API key")
+if x_api_key != API_KEY:
+    raise HTTPException(status_code=401, detail="Invalid API key")
 
 try:
 
-    message=BitcoinMessage(data.message)
+    message = BitcoinMessage(data.message)
 
-    verified=VerifyMessage(
+    verified = VerifyMessage(
     CBitcoinAddress(data.address),
     message,
     data.signature
@@ -203,23 +203,23 @@ try:
     if not verified:
         return {"status":"invalid"}
 
-    verification_id=str(uuid.uuid4())[:8]
+    verification_id = str(uuid.uuid4())[:8]
 
-    message_hash=hashlib.sha256(data.message.encode()).hexdigest()
+    message_hash = hashlib.sha256(data.message.encode()).hexdigest()
 
     pending_hashes.append(message_hash)
 
-    proof_url=f"https://bitcoin-proof-api.onrender.com/proof/{verification_id}"
+    proof_url = f"https://bitcoin-proof-api.onrender.com/proof/{verification_id}"
 
-    qr=qrcode.make(proof_url)
+    qr = qrcode.make(proof_url)
 
-    qr_path=f"{CERT_FOLDER}/qr_{verification_id}.png"
+    qr_path = f"{CERT_FOLDER}/qr_{verification_id}.png"
 
     qr.save(qr_path)
 
-    pdf_file=f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
+    pdf_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
 
-    c=canvas.Canvas(pdf_file)
+    c = canvas.Canvas(pdf_file)
 
     c.setFont("Helvetica",16)
     c.drawString(160,750,"Bitcoin Proof Certificate")
@@ -267,9 +267,9 @@ cursor.execute(
 (user_id,)
 )
 
-rows=cursor.fetchall()
+rows = cursor.fetchall()
 
-result=[]
+result = []
 
 for r in rows:
 
@@ -288,10 +288,10 @@ return result
 def certificate(verification_id:str):
 
 ```
-pdf_file=f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
+pdf_file = f"{CERT_FOLDER}/certificate_{verification_id}.pdf"
 
 if not os.path.exists(pdf_file):
-    raise HTTPException(status_code=404,detail="Certificate not found")
+    raise HTTPException(status_code=404, detail="Certificate not found")
 
 return FileResponse(pdf_file)
 ```
@@ -356,5 +356,111 @@ h1{{color:#f7931a;}}
 </html>
 
 """
+
+# PUBLIC EXPLORER
+
+@app.get("/explorer",response_class=HTMLResponse)
+def explorer():
+
+```
+cursor.execute("SELECT id,address,message_hash FROM proofs")
+
+rows = cursor.fetchall()
+
+html = """
+```
+
+<html>
+
+<head>
+
+<title>BitcoinProof Explorer</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:40px;
+}
+
+table{
+margin:auto;
+border-collapse:collapse;
+}
+
+td,th{
+border:1px solid white;
+padding:10px;
+}
+
+a{color:#f7931a;}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>BitcoinProof Explorer</h1>
+
+<table>
+
+<tr>
+
+<th>ID</th>
+<th>Address</th>
+<th>Hash</th>
+<th>Proof</th>
+<th>Certificate</th>
+
+</tr>
+
+"""
+
+```
+for r in rows:
+
+    vid=r[0]
+    address=r[1]
+    h=r[2]
+
+    html += f"""
+```
+
+<tr>
+
+<td>{vid}</td>
+
+<td>{address}</td>
+
+<td>{h}</td>
+
+<td><a href="/proof/{vid}">View</a></td>
+
+<td><a href="/certificate/{vid}">PDF</a></td>
+
+</tr>
+
+"""
+
+```
+html += """
+```
+
+</table>
+
+</body>
+
+</html>
+
+"""
+
+```
+return html
+```
+
 
 
