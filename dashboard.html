@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<title>BitcoinProof Dashboard</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:40px;
+}
+
+.box{
+background:#1e293b;
+padding:30px;
+border-radius:10px;
+width:420px;
+margin:auto;
+}
+
+input{
+width:90%;
+padding:10px;
+margin:6px;
+}
+
+button{
+padding:10px 20px;
+margin:6px;
+background:#f7931a;
+border:none;
+color:white;
+cursor:pointer;
+}
+
+h1{
+color:#f7931a;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>BitcoinProof</h1>
+
+<div class="box">
+
+<h2>Register</h2>
+
+<input id="reg_email" placeholder="email">
+<input id="reg_pass" placeholder="password">
+
+<button onclick="register()">Register</button>
+
+<hr>
+
+<h2>Login</h2>
+
+<input id="log_email" placeholder="email">
+<input id="log_pass" placeholder="password">
+
+<button onclick="login()">Login</button>
+
+</div>
+
+<br>
+
+<div class="box">
+
+<h2>Create Proof</h2>
+
+<input id="address" placeholder="Bitcoin address">
+
+<input id="message" placeholder="Message">
+
+<input id="signature" placeholder="Signature">
+
+<button onclick="verify()">Verify</button>
+
+</div>
+
+<br>
+
+<div class="box">
+
+<h2>My Proofs</h2>
+
+<button onclick="loadProofs()">Load proofs</button>
+
+<div id="proofs"></div>
+
+</div>
+
+<script>
+
+const API="https://bitcoin-proof-api.onrender.com"
+
+let USER_ID=null
+
+
+async function register(){
+
+let email=document.getElementById("reg_email").value
+let password=document.getElementById("reg_pass").value
+
+let r=await fetch(API+"/register",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+email:email,
+password:password
+})
+
+})
+
+let j=await r.json()
+
+alert(JSON.stringify(j))
+
+}
+
+
+
+async function login(){
+
+let email=document.getElementById("log_email").value
+let password=document.getElementById("log_pass").value
+
+let r=await fetch(API+"/login",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+email:email,
+password:password
+})
+
+})
+
+let j=await r.json()
+
+if(j.user_id){
+
+USER_ID=j.user_id
+
+alert("Login success")
+
+}
+
+else{
+
+alert("Login failed")
+
+}
+
+}
+
+
+
+async function verify(){
+
+if(!USER_ID){
+
+alert("login first")
+
+return
+
+}
+
+let address=document.getElementById("address").value
+let message=document.getElementById("message").value
+let signature=document.getElementById("signature").value
+
+let r=await fetch(API+"/verify",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json",
+"X-API-KEY":"dev_key_123456"
+},
+
+body:JSON.stringify({
+
+address:address,
+message:message,
+signature:signature,
+user_id:USER_ID
+
+})
+
+})
+
+let j=await r.json()
+
+alert(JSON.stringify(j))
+
+}
+
+
+
+async function loadProofs(){
+
+if(!USER_ID){
+
+alert("login first")
+
+return
+
+}
+
+let r=await fetch(API+"/user_proofs/"+USER_ID)
+
+let j=await r.json()
+
+let html=""
+
+for(let p of j){
+
+html+=`
+<div>
+
+<b>ID:</b> ${p.verification_id}
+
+<br>
+
+<a href="${API}/certificate/${p.verification_id}" target="_blank">
+
+Download certificate
+
+</a>
+
+</div><br>
+`
+
+}
+
+document.getElementById("proofs").innerHTML=html
+
+}
+
+</script>
+
+</body>
+
+</html>
