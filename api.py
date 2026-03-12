@@ -461,6 +461,10 @@ html += """
 ```
 return html
 ```
+from fastapi.responses import FileResponse
 
+@app.get("/dashboard")
+def dashboard():
+    return FileResponse("dashboard.html")
 
 
