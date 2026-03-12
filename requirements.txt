@@ -1,5 +1,5 @@
 fastapi
 uvicorn
-python-bitcoinlib
 reportlab
-qrcode[pil]
+qrcode
+pillow
