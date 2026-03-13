@@ -9,7 +9,7 @@ import datetime
 app = FastAPI()
 
 # -----------------------
-# FILES
+# PATHS
 # -----------------------
 
 BASE_DIR = os.path.dirname(__file__)
@@ -18,7 +18,6 @@ INDEX_FILE = os.path.join(BASE_DIR, "templates", "index.html")
 EXPLORER_FILE = os.path.join(BASE_DIR, "templates", "explorer.html")
 
 DB_FILE = os.path.join(BASE_DIR, "proofs.json")
-
 
 # -----------------------
 # DATABASE
@@ -52,7 +51,40 @@ def check_key(key):
 
 
 # -----------------------
-# HOME PAGE
+# MERKLE TREE
+# -----------------------
+
+def merkle_root(hashes):
+
+    if len(hashes) == 0:
+        return None
+
+    hashes = hashes.copy()
+
+    while len(hashes) > 1:
+
+        if len(hashes) % 2 == 1:
+            hashes.append(hashes[-1])
+
+        new_level = []
+
+        for i in range(0, len(hashes), 2):
+
+            combined = hashes[i] + hashes[i + 1]
+
+            new_hash = hashlib.sha256(
+                combined.encode()
+            ).hexdigest()
+
+            new_level.append(new_hash)
+
+        hashes = new_level
+
+    return hashes[0]
+
+
+# -----------------------
+# WEBSITE
 # -----------------------
 
 @app.get("/", response_class=HTMLResponse)
@@ -64,10 +96,6 @@ def home():
 
     return "<h1>index.html not found</h1>"
 
-
-# -----------------------
-# EXPLORER PAGE
-# -----------------------
 
 @app.get("/explorer", response_class=HTMLResponse)
 def explorer():
@@ -146,6 +174,25 @@ def proof(proof_id: str):
             return p
 
     return {"error": "Proof not found"}
+
+
+# -----------------------
+# MERKLE ROOT
+# -----------------------
+
+@app.get("/merkle")
+def merkle():
+
+    proofs = load_proofs()
+
+    hashes = [p["message_hash"] for p in proofs]
+
+    root = merkle_root(hashes)
+
+    return {
+        "proof_count": len(hashes),
+        "merkle_root": root
+    }
 
 
 
