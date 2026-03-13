@@ -1,9 +1,21 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, FileResponse
 import os
-
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="static"), name="static")
 app = FastAPI()
-
+@app.get("/", response_class=HTMLResponse)
+def home():
+    with open("templates/index.html") as f:
+        return f.read()
+@app.get("/explorer", response_class=HTMLResponse)
+def explorer():
+    with open("templates/explorer.html") as f:
+        return f.read()
+@app.get("/proofs")
+def proofs():
+    return proofs
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """

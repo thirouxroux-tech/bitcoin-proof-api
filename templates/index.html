@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>BitcoinProof</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+<h1>BitcoinProof</h1>
+
+<p>Prove anything on Bitcoin.</p>
+
+<a href="/docs">API</a>
+<a href="/dashboard">Dashboard</a>
+<a href="/explorer">Explorer</a>
+
+<br><br>
+
+<form id="verifyForm">
+
+<input id="address" placeholder="Bitcoin address"><br><br>
+<input id="message" placeholder="Message"><br><br>
+<input id="signature" placeholder="Signature"><br><br>
+
+<button type="submit">Verify</button>
+
+</form>
+
+<pre id="result"></pre>
+
+<script>
+
+document.getElementById("verifyForm").onsubmit = async (e) => {
+
+e.preventDefault()
+
+let res = await fetch("/verify",{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+"X-API-KEY":"dev_key_123456"
+},
+body:JSON.stringify({
+address:document.getElementById("address").value,
+message:document.getElementById("message").value,
+signature:document.getElementById("signature").value
+})
+})
+
+let data = await res.json()
+
+document.getElementById("result").textContent =
+JSON.stringify(data,null,2)
+
+}
+
+</script>
+
+</body>
+</html>

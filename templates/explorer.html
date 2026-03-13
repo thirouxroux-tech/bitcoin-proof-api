@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>BitcoinProof Explorer</title>
+</head>
+
+<body>
+
+<h1>Proof Explorer</h1>
+
+<div id="proofs"></div>
+
+<script>
+
+fetch("/proofs")
+.then(r=>r.json())
+.then(data=>{
+
+let html=""
+
+data.forEach(p=>{
+
+html += "<pre>"+JSON.stringify(p,null,2)+"</pre>"
+
+})
+
+document.getElementById("proofs").innerHTML=html
+
+})
+
+</script>
+
+</body>
+</html>
