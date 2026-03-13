@@ -11,11 +11,14 @@ import os
 
 app = FastAPI()
 
-# ---------- WEBSITE ----------
+# -------------------------
+# WEBSITE CONFIG
+# -------------------------
 
 templates = Jinja2Templates(directory="templates")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/", response_class=HTMLResponse)
 def homepage(request: Request):
@@ -23,21 +26,19 @@ def homepage(request: Request):
         "index.html",
         {"request": request}
     )
+
+
 @app.get("/explorer", response_class=HTMLResponse)
 def explorer(request: Request):
     return templates.TemplateResponse(
         "explorer.html",
         {"request": request}
     )
-@app.get("/explorer", response_class=HTMLResponse)
-def explorer_page(request: Request):
-    return templates.TemplateResponse(
-        "explorer.html",
-        {"request": request}
-    )
 
 
-# ---------- DATABASE ----------
+# -------------------------
+# DATABASE
+# -------------------------
 
 DB_FILE = "proofs.json"
 
@@ -56,7 +57,9 @@ def save_proofs(data):
         json.dump(data, f, indent=2)
 
 
-# ---------- API KEY ----------
+# -------------------------
+# API KEY
+# -------------------------
 
 API_KEY = os.getenv("API_KEY", "dev_key_123456")
 
@@ -66,20 +69,21 @@ def check_key(key):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# ---------- ROOT API ----------
+# -------------------------
+# API STATUS
+# -------------------------
 
 @app.get("/api")
 def api_status():
     return {"status": "Bitcoin Proof API running"}
 
 
-# ---------- VERIFY SIGNATURE ----------
+# -------------------------
+# VERIFY SIGNATURE
+# -------------------------
 
 @app.post("/verify")
-def verify(
-    data: dict,
-    x_api_key: str = Header(None)
-):
+def verify(data: dict, x_api_key: str = Header(None)):
 
     check_key(x_api_key)
 
@@ -109,14 +113,18 @@ def verify(
     return proof
 
 
-# ---------- LIST PROOFS ----------
+# -------------------------
+# LIST PROOFS
+# -------------------------
 
 @app.get("/proofs")
 def get_proofs():
     return load_proofs()
 
 
-# ---------- SINGLE PROOF ----------
+# -------------------------
+# GET SINGLE PROOF
+# -------------------------
 
 @app.get("/proof/{proof_id}")
 def get_proof(proof_id: str):
@@ -128,24 +136,6 @@ def get_proof(proof_id: str):
             return p
 
     raise HTTPException(status_code=404, detail="Proof not found")
-
-    <p>
-    <a href="/dashboard">Dashboard</a>
-    </p>
-
-    </body>
-    </html>
-    """
-
-@app.get("/dashboard")
-def dashboard():
-
-    file="dashboard.html"
-
-    if os.path.exists(file):
-        return FileResponse(file)
-
-    return {"error":"dashboard.html not found"}
 
 
 
