@@ -23,7 +23,12 @@ def homepage(request: Request):
         "index.html",
         {"request": request}
     )
-
+@app.get("/explorer", response_class=HTMLResponse)
+def explorer(request: Request):
+    return templates.TemplateResponse(
+        "explorer.html",
+        {"request": request}
+    )
 @app.get("/explorer", response_class=HTMLResponse)
 def explorer_page(request: Request):
     return templates.TemplateResponse(
