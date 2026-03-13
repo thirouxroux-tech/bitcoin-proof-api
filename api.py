@@ -1,46 +1,28 @@
-from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-
-import hashlib
 import json
+import os
+import hashlib
 import uuid
 import datetime
-import os
 
 app = FastAPI()
 
-# -------------------------
-# WEBSITE CONFIG
-# -------------------------
+# -----------------------
+# FILES
+# -----------------------
 
-templates = Jinja2Templates(directory="templates")
+BASE_DIR = os.path.dirname(__file__)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+INDEX_FILE = os.path.join(BASE_DIR, "templates", "index.html")
+EXPLORER_FILE = os.path.join(BASE_DIR, "templates", "explorer.html")
 
-
-@app.get("/", response_class=HTMLResponse)
-def homepage(request: Request):
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
-    )
+DB_FILE = os.path.join(BASE_DIR, "proofs.json")
 
 
-@app.get("/explorer", response_class=HTMLResponse)
-def explorer(request: Request):
-    return templates.TemplateResponse(
-        "explorer.html",
-        {"request": request}
-    )
-
-
-# -------------------------
+# -----------------------
 # DATABASE
-# -------------------------
-
-DB_FILE = "proofs.json"
+# -----------------------
 
 if not os.path.exists(DB_FILE):
     with open(DB_FILE, "w") as f:
@@ -57,9 +39,9 @@ def save_proofs(data):
         json.dump(data, f, indent=2)
 
 
-# -------------------------
+# -----------------------
 # API KEY
-# -------------------------
+# -----------------------
 
 API_KEY = os.getenv("API_KEY", "dev_key_123456")
 
@@ -69,18 +51,46 @@ def check_key(key):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# -------------------------
+# -----------------------
+# HOME PAGE
+# -----------------------
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+
+    if os.path.exists(INDEX_FILE):
+        with open(INDEX_FILE) as f:
+            return f.read()
+
+    return "<h1>index.html not found</h1>"
+
+
+# -----------------------
+# EXPLORER PAGE
+# -----------------------
+
+@app.get("/explorer", response_class=HTMLResponse)
+def explorer():
+
+    if os.path.exists(EXPLORER_FILE):
+        with open(EXPLORER_FILE) as f:
+            return f.read()
+
+    return "<h1>explorer.html not found</h1>"
+
+
+# -----------------------
 # API STATUS
-# -------------------------
+# -----------------------
 
 @app.get("/api")
-def api_status():
+def api():
     return {"status": "Bitcoin Proof API running"}
 
 
-# -------------------------
-# VERIFY SIGNATURE
-# -------------------------
+# -----------------------
+# VERIFY
+# -----------------------
 
 @app.post("/verify")
 def verify(data: dict, x_api_key: str = Header(None)):
@@ -113,21 +123,21 @@ def verify(data: dict, x_api_key: str = Header(None)):
     return proof
 
 
-# -------------------------
+# -----------------------
 # LIST PROOFS
-# -------------------------
+# -----------------------
 
 @app.get("/proofs")
-def get_proofs():
+def proofs():
     return load_proofs()
 
 
-# -------------------------
-# GET SINGLE PROOF
-# -------------------------
+# -----------------------
+# SINGLE PROOF
+# -----------------------
 
 @app.get("/proof/{proof_id}")
-def get_proof(proof_id: str):
+def proof(proof_id: str):
 
     proofs = load_proofs()
 
@@ -135,7 +145,7 @@ def get_proof(proof_id: str):
         if p["verification_id"] == proof_id:
             return p
 
-    raise HTTPException(status_code=404, detail="Proof not found")
+    return {"error": "Proof not found"}
 
 
 
