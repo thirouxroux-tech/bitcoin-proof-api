@@ -1,60 +1,163 @@
-﻿<!DOCTYPE html>
+
+<!DOCTYPE html>
+
 <html>
+
 <head>
+
+<meta charset="UTF-8">
+
 <title>BitcoinProof</title>
-<link rel="stylesheet" href="/static/style.css">
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:40px;
+}
+
+.container{
+background:#1e293b;
+padding:30px;
+border-radius:10px;
+width:600px;
+margin:auto;
+}
+
+h1{
+color:#f7931a;
+}
+
+input{
+width:90%;
+padding:10px;
+margin:10px;
+border-radius:5px;
+border:none;
+}
+
+button{
+background:#f7931a;
+border:none;
+padding:12px 20px;
+border-radius:5px;
+cursor:pointer;
+font-size:16px;
+}
+
+button:hover{
+background:#ff9f2e;
+}
+
+#result{
+margin-top:20px;
+background:#0f172a;
+padding:15px;
+border-radius:6px;
+}
+
+a{
+color:#22c55e;
+text-decoration:none;
+}
+
+.footer{
+margin-top:30px;
+opacity:0.6;
+}
+
+</style>
+
 </head>
 
 <body>
 
+<div class="container">
+
 <h1>BitcoinProof</h1>
 
-<p>Prove anything on Bitcoin</p>
+<p>Verify ownership of a Bitcoin address using signed messages.</p>
 
-<a href="/docs">API</a> |
-<a href="/explorer">Explorer</a>
+<input id="address" placeholder="Bitcoin Address">
 
-<br><br>
+<input id="message" placeholder="Signed Message">
 
-<form id="verifyForm">
+<input id="signature" placeholder="Signature">
 
-<input id="address" placeholder="Bitcoin address"><br><br>
-<input id="message" placeholder="Message"><br><br>
-<input id="signature" placeholder="Signature"><br><br>
+<button onclick="verify()">Verify Signature</button>
 
-<button type="submit">Verify</button>
+<div id="result"></div>
 
-</form>
+</div>
 
-<pre id="result"></pre>
+<div class="footer">
+BitcoinProof – Cryptographic proof powered by Bitcoin
+</div>
 
 <script>
 
-document.getElementById("verifyForm").onsubmit = async (e) => {
+async function verify(){
 
-e.preventDefault()
+const address=document.getElementById("address").value
+const message=document.getElementById("message").value
+const signature=document.getElementById("signature").value
 
-let res = await fetch("/verify",{
+document.getElementById("result").innerHTML="Verifying..."
+
+try{
+
+const response=await fetch(
+"https://bitcoin-proof-api.onrender.com/verify",
+{
 method:"POST",
 headers:{
 "Content-Type":"application/json",
 "X-API-KEY":"dev_key_123456"
 },
 body:JSON.stringify({
-address:document.getElementById("address").value,
-message:document.getElementById("message").value,
-signature:document.getElementById("signature").value
+address:address,
+message:message,
+signature:signature
 })
 })
 
-let data = await res.json()
+const data=await response.json()
 
-document.getElementById("result").textContent =
-JSON.stringify(data,null,2)
+document.getElementById("result").innerHTML=
+`
+<h3>Status : ${data.status}</h3>
+
+<p>Verification ID : ${data.verification_id}</p>
+
+<p>Message Hash : ${data.message_hash}</p>
+
+<p>
+<a href="https://bitcoin-proof-api.onrender.com/certificate/${data.verification_id}" target="_blank">
+Download Certificate
+</a>
+</p>
+
+<p>
+<a href="https://bitcoin-proof-api.onrender.com/proof/${data.verification_id}" target="_blank">
+Public Verification Page
+</a>
+</p>
+`
+
+}catch(error){
+
+document.getElementById("result").innerHTML="API connection error"
+
+}
 
 }
 
 </script>
 
 </body>
+
 </html>
+
