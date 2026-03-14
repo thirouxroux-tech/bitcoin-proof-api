@@ -12,27 +12,30 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 API_KEY = os.getenv("API_KEY", "dev_key_123456")
-
 PROOF_FILE = "proofs.json"
 
 
 # -------------------------
-# utils
+# utilities
 # -------------------------
 
 def load_proofs():
+
     if not os.path.exists(PROOF_FILE):
         return []
+
     with open(PROOF_FILE, "r") as f:
         return json.load(f)
 
 
 def save_proofs(proofs):
+
     with open(PROOF_FILE, "w") as f:
         json.dump(proofs, f, indent=4)
 
 
 def sha256(data):
+
     return hashlib.sha256(data.encode()).hexdigest()
 
 
@@ -79,7 +82,7 @@ def root():
 
 
 # -------------------------
-# verify
+# create proof
 # -------------------------
 
 @app.post("/verify")
@@ -92,8 +95,8 @@ async def verify(request: Request):
 
     data = await request.json()
 
-    address = data.get("address")
     message = data.get("message")
+    address = data.get("address")
     signature = data.get("signature")
 
     if not message:
@@ -103,33 +106,50 @@ async def verify(request: Request):
 
     proof = {
         "verification_id": str(uuid.uuid4())[:8],
-        "address": address,
         "message": message,
-        "signature": signature,
         "message_hash": message_hash,
+        "address": address,
+        "signature": signature,
         "timestamp": datetime.utcnow().isoformat()
     }
 
     proofs = load_proofs()
     proofs.append(proof)
+
     save_proofs(proofs)
 
     return proof
 
 
 # -------------------------
-# proofs list
+# list proofs
 # -------------------------
 
 @app.get("/proofs")
-def get_proofs():
+def proofs():
+
+    data = load_proofs()
+
+    return {
+        "count": len(data),
+        "proofs": data
+    }
+
+
+# -------------------------
+# single proof
+# -------------------------
+
+@app.get("/proof/{verification_id}")
+def proof(verification_id: str):
 
     proofs = load_proofs()
 
-    return {
-        "count": len(proofs),
-        "proofs": proofs
-    }
+    for p in proofs:
+        if p["verification_id"] == verification_id:
+            return p
+
+    return {"error": "proof not found"}
 
 
 # -------------------------
@@ -137,7 +157,7 @@ def get_proofs():
 # -------------------------
 
 @app.get("/merkle")
-def get_merkle():
+def merkle():
 
     proofs = load_proofs()
 
@@ -152,7 +172,7 @@ def get_merkle():
 
 
 # -------------------------
-# bitcoin anchor preparation
+# anchor preparation
 # -------------------------
 
 @app.get("/anchor")
@@ -182,11 +202,16 @@ def explorer(request: Request):
 
     proofs = load_proofs()
 
-    return templates.TemplateResponse(
-        "explorer.html",
-        {
-            "request": request,
-            "proofs": proofs
-        }
-    )
+    html = "<h1>BitcoinProof Explorer</h1>"
 
+    for p in proofs:
+
+        html += f"""
+        <div style='margin-bottom:20px'>
+        <b>ID:</b> {p['verification_id']} <br>
+        <b>Hash:</b> {p['message_hash']} <br>
+        <b>Timestamp:</b> {p['timestamp']} <br>
+        </div>
+        """
+
+    return HTMLResponse(html)
