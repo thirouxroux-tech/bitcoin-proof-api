@@ -208,6 +208,21 @@ def merkle():
         "proof_count": len(hashes),
         "merkle_root": root
     }
+@app.get("/anchor")
+def anchor():
 
+    proofs = load_proofs()
+
+    hashes = [p["message_hash"] for p in proofs]
+
+    root = merkle_root(hashes)
+
+    if root is None:
+        return {"error": "no proofs to anchor"}
+
+    return {
+        "merkle_root": root,
+        "bitcoin_op_return": root[:80]
+    }
 
 
