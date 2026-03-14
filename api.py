@@ -248,3 +248,40 @@ def anchor():
         "bitcoin_op_return": root[:80]
 
     }
+@app.get("/anchor")
+def anchor():
+
+    proofs = load_proofs()
+
+    hashes = [p["message_hash"] for p in proofs]
+
+    if len(hashes) == 0:
+        return {"error": "no proofs"}
+
+    layer = hashes
+
+    while len(layer) > 1:
+
+        new_layer = []
+
+        for i in range(0, len(layer), 2):
+
+            left = layer[i]
+
+            if i + 1 < len(layer):
+                right = layer[i + 1]
+            else:
+                right = left
+
+            new_hash = sha256(left + right)
+
+            new_layer.append(new_hash)
+
+        layer = new_layer
+
+    root = layer[0]
+
+    return {
+        "merkle_root": root,
+        "bitcoin_op_return": root[:80]
+    }
