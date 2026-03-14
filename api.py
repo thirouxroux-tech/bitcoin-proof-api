@@ -219,3 +219,15 @@ def explorer(request: Request):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+
+    proofs = load_proofs()
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "proofs": proofs
+        }
+    )
