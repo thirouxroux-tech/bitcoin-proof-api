@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import hashlib
@@ -12,12 +12,17 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 PROOF_FILE = "proofs.json"
-API_KEY = os.getenv("API_KEY", "dev_key_123456")
+
+API_KEY = "dev_key_123456"
 
 
-# -------------------
-# utils
-# -------------------
+# -------------------------
+# helpers
+# -------------------------
+
+def sha256(data):
+    return hashlib.sha256(data.encode()).hexdigest()
+
 
 def load_proofs():
 
@@ -31,98 +36,49 @@ def load_proofs():
 def save_proofs(proofs):
 
     with open(PROOF_FILE, "w") as f:
-        json.dump(proofs, f, indent=4)
+        json.dump(proofs, f, indent=2)
 
 
-def sha256(data):
+# -------------------------
+# root
+# -------------------------
 
-    return hashlib.sha256(data.encode()).hexdigest()
+@app.get("/")
+def root():
 
-
-# -------------------
-# root page
-# -------------------
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
-    )
+    return {"status": "Bitcoin Proof API running"}
 
 
-# -------------------
-# dashboard
-# -------------------
-
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request):
-
-    proofs = load_proofs()
-
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "proofs": proofs
-        }
-    )
-
-
-# -------------------
-# explorer
-# -------------------
-
-@app.get("/explorer", response_class=HTMLResponse)
-def explorer(request: Request):
-
-    proofs = load_proofs()
-
-    return templates.TemplateResponse(
-        "explorer.html",
-        {
-            "request": request,
-            "proofs": proofs
-        }
-    )
-
-
-# -------------------
-# verify
-# -------------------
+# -------------------------
+# verify proof
+# -------------------------
 
 @app.post("/verify")
-async def verify(request: Request):
+async def verify(data: dict, x_api_key: str = Header(None)):
 
-    key = request.headers.get("X-API-KEY")
-
-    if key != API_KEY:
-        return {"error": "unauthorized"}
-
-    data = await request.json()
+    if x_api_key != API_KEY:
+        return {"error": "invalid api key"}
 
     message = data.get("message")
-    address = data.get("address")
-    signature = data.get("signature")
 
     if not message:
-        return {"error": "message missing"}
+        return {"error": "no message"}
 
     message_hash = sha256(message)
 
+    verification_id = str(uuid.uuid4())[:8]
+
     proof = {
 
-        "verification_id": str(uuid.uuid4())[:8],
+        "verification_id": verification_id,
         "message": message,
         "message_hash": message_hash,
-        "address": address,
-        "signature": signature,
         "timestamp": datetime.utcnow().isoformat()
 
     }
 
     proofs = load_proofs()
+
     proofs.append(proof)
 
     save_proofs(proofs)
@@ -130,41 +86,42 @@ async def verify(request: Request):
     return proof
 
 
-# -------------------
-# proofs
-# -------------------
+# -------------------------
+# list proofs
+# -------------------------
 
 @app.get("/proofs")
-def proofs():
+def get_proofs():
 
-    data = load_proofs()
+    proofs = load_proofs()
 
     return {
-        "count": len(data),
-        "proofs": data
+
+        "count": len(proofs),
+        "proofs": proofs
+
     }
 
 
-# -------------------
-# single proof
-# -------------------
+# -------------------------
+# get single proof
+# -------------------------
 
 @app.get("/proof/{verification_id}")
-def proof(verification_id: str):
+def get_proof(verification_id: str):
 
     proofs = load_proofs()
 
     for p in proofs:
-
         if p["verification_id"] == verification_id:
             return p
 
     return {"error": "proof not found"}
 
 
-# -------------------
-# merkle root
-# -------------------
+# -------------------------
+# merkle tree
+# -------------------------
 
 @app.get("/merkle")
 def merkle():
@@ -191,9 +148,7 @@ def merkle():
             else:
                 right = left
 
-            new_hash = sha256(left + right)
-
-            new_layer.append(new_hash)
+            new_layer.append(sha256(left + right))
 
         layer = new_layer
 
@@ -205,42 +160,19 @@ def merkle():
     }
 
 
-# -------------------
-# anchor
-# -------------------
+# -------------------------
+# anchor (bitcoin root)
+# -------------------------
 
 @app.get("/anchor")
 def anchor():
 
-    proofs = load_proofs()
+    result = merkle()
 
-    hashes = [p["message_hash"] for p in proofs]
+    root = result["merkle_root"]
 
-    if len(hashes) == 0:
+    if not root:
         return {"error": "no proofs"}
-
-    layer = hashes
-
-    while len(layer) > 1:
-
-        new_layer = []
-
-        for i in range(0, len(layer), 2):
-
-            left = layer[i]
-
-            if i + 1 < len(layer):
-                right = layer[i + 1]
-            else:
-                right = left
-
-            new_hash = sha256(left + right)
-
-            new_layer.append(new_hash)
-
-        layer = new_layer
-
-    root = layer[0]
 
     return {
 
@@ -248,50 +180,19 @@ def anchor():
         "bitcoin_op_return": root[:80]
 
     }
-@app.get("/anchor")
-def anchor():
 
-    proofs = load_proofs()
 
-    hashes = [p["message_hash"] for p in proofs]
+# -------------------------
+# merkle proof
+# -------------------------
 
-    if len(hashes) == 0:
-        return {"error": "no proofs"}
-
-    layer = hashes
-
-    while len(layer) > 1:
-
-        new_layer = []
-
-        for i in range(0, len(layer), 2):
-
-            left = layer[i]
-
-            if i + 1 < len(layer):
-                right = layer[i + 1]
-            else:
-                right = left
-
-            new_hash = sha256(left + right)
-
-            new_layer.append(new_hash)
-
-        layer = new_layer
-
-    root = layer[0]
-
-    return {
-        "merkle_root": root,
-        "bitcoin_op_return": root[:80]
-    }
 @app.get("/merkle-proof/{verification_id}")
 def merkle_proof(verification_id: str):
 
     proofs = load_proofs()
 
-    # trouver la preuve correspondante
     target = None
+
     for p in proofs:
         if p["verification_id"] == verification_id:
             target = p
@@ -301,9 +202,11 @@ def merkle_proof(verification_id: str):
         return {"error": "proof not found"}
 
     hashes = [p["message_hash"] for p in proofs]
+
     index = hashes.index(target["message_hash"])
 
     proof_path = []
+
     layer = hashes
 
     while len(layer) > 1:
@@ -319,19 +222,58 @@ def merkle_proof(verification_id: str):
             else:
                 right = left
 
-            # enregistrer le sibling pour la preuve
             if i == index or i + 1 == index:
+
                 sibling = right if i == index else left
+
                 proof_path.append(sibling)
+
                 index = len(new_layer)
 
             new_hash = sha256(left + right)
+
             new_layer.append(new_hash)
 
         layer = new_layer
 
     return {
+
         "verification_id": verification_id,
         "merkle_root": layer[0],
         "merkle_proof": proof_path
+
     }
+
+
+# -------------------------
+# explorer page
+# -------------------------
+
+@app.get("/explorer", response_class=HTMLResponse)
+def explorer(request: Request):
+
+    proofs = load_proofs()
+
+    return templates.TemplateResponse(
+
+        "explorer.html",
+        {"request": request, "proofs": proofs}
+
+    )
+
+
+# -------------------------
+# dashboard page
+# -------------------------
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+
+    proofs = load_proofs()
+
+    return templates.TemplateResponse(
+
+        "dashboard.html",
+        {"request": request, "proofs": proofs}
+
+    )
