@@ -2,26 +2,52 @@
 <html>
 
 <head>
-<title>BitcoinProof Explorer</title>
+<title>Create Proof</title>
 </head>
 
 <body>
 
-<h1>BitcoinProof Explorer</h1>
+<h1>Create Bitcoin Proof</h1>
 
-{% for p in proofs %}
+<form id="proofForm">
 
-<div>
+<input type="text" id="message" placeholder="Message">
+<button type="submit">Create Proof</button>
 
-<p><b>ID:</b> {{p.verification_id}}</p>
-<p><b>Message:</b> {{p.message}}</p>
-<p><b>Date:</b> {{p.timestamp}}</p>
+</form>
 
-<hr>
+<pre id="result"></pre>
 
-</div>
+<script>
 
-{% endfor %}
+document.getElementById("proofForm").onsubmit = async function(e){
+
+e.preventDefault()
+
+let message = document.getElementById("message").value
+
+let res = await fetch("/verify",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json",
+"X-API-KEY":"dev_key_123456"
+},
+
+body:JSON.stringify({message})
+
+})
+
+let data = await res.json()
+
+document.getElementById("result").innerText =
+JSON.stringify(data,null,2)
+
+}
+
+</script>
 
 </body>
+
 </html>
