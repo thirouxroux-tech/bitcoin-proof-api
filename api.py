@@ -290,17 +290,20 @@ def merkle_proof(verification_id: str):
 
     proofs = load_proofs()
 
-    hashes = [p["message_hash"] for p in proofs]
+    # trouver la preuve correspondante
+    target = None
+    for p in proofs:
+        if p["verification_id"] == verification_id:
+            target = p
+            break
 
-    ids = [p["verification_id"] for p in proofs]
-
-    if verification_id not in ids:
+    if target is None:
         return {"error": "proof not found"}
 
-    index = ids.index(verification_id)
+    hashes = [p["message_hash"] for p in proofs]
+    index = hashes.index(target["message_hash"])
 
     proof_path = []
-
     layer = hashes
 
     while len(layer) > 1:
@@ -316,27 +319,19 @@ def merkle_proof(verification_id: str):
             else:
                 right = left
 
+            # enregistrer le sibling pour la preuve
             if i == index or i + 1 == index:
-
                 sibling = right if i == index else left
-
                 proof_path.append(sibling)
-
                 index = len(new_layer)
 
             new_hash = sha256(left + right)
-
             new_layer.append(new_hash)
 
         layer = new_layer
-    root = layer[0]
 
     return {
-
         "verification_id": verification_id,
-        "merkle_root": root,
+        "merkle_root": layer[0],
         "merkle_proof": proof_path
-
     }
-
-   
