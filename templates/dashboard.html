@@ -1,11 +1,27 @@
 <!DOCTYPE html>
 <html>
+
+<head>
+<title>BitcoinProof Explorer</title>
+</head>
+
 <body>
 
-<h1>BitcoinProof Dashboard</h1>
+<h1>BitcoinProof Explorer</h1>
 
-<p>Si tu vois ce texte, le dashboard fonctionne.</p>
+{% for p in proofs %}
+
+<div>
+
+<p><b>ID:</b> {{p.verification_id}}</p>
+<p><b>Message:</b> {{p.message}}</p>
+<p><b>Date:</b> {{p.timestamp}}</p>
+
+<hr>
+
+</div>
+
+{% endfor %}
 
 </body>
 </html>
-
