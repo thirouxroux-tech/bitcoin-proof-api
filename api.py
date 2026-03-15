@@ -285,3 +285,58 @@ def anchor():
         "merkle_root": root,
         "bitcoin_op_return": root[:80]
     }
+@app.get("/merkle-proof/{verification_id}")
+def merkle_proof(verification_id: str):
+
+    proofs = load_proofs()
+
+    hashes = [p["message_hash"] for p in proofs]
+
+    ids = [p["verification_id"] for p in proofs]
+
+    if verification_id not in ids:
+        return {"error": "proof not found"}
+
+    index = ids.index(verification_id)
+
+    proof_path = []
+
+    layer = hashes
+
+    while len(layer) > 1:
+
+        new_layer = []
+
+        for i in range(0, len(layer), 2):
+
+            left = layer[i]
+
+            if i + 1 < len(layer):
+                right = layer[i + 1]
+            else:
+                right = left
+
+            if i == index or i + 1 == index:
+
+                sibling = right if i == index else left
+
+                proof_path.append(sibling)
+
+                index = len(new_layer)
+
+            new_hash = sha256(left + right)
+
+            new_layer.append(new_hash)
+
+        layer = new_layer
+    root = layer[0]
+
+    return {
+
+        "verification_id": verification_id,
+        "merkle_root": root,
+        "merkle_proof": proof_path
+
+    }
+
+   
