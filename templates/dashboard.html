@@ -1,4 +1,68 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title
+
+<title>BitcoinProof Dashboard</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+padding:40px;
+}
+
+h1{
+color:#f7931a;
+}
+
+.card{
+background:#1e293b;
+padding:20px;
+margin-top:20px;
+border-radius:10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>BitcoinProof Dashboard</h1>
+
+<div class="card">
+
+<h2>Proofs</h2>
+
+{% if proofs %}
+
+<ul>
+
+{% for p in proofs %}
+
+<li>
+
+<b>{{p.verification_id}}</b><br>
+{{p.message}}<br>
+{{p.timestamp}}
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+{% else %}
+
+<p>No proofs yet</p>
+
+{% endif %}
+
+</div>
+
+</body>
+
+</html>

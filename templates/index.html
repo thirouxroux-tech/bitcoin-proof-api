@@ -1,113 +1,150 @@
 <!DOCTYPE html>
 <html>
+
 <head>
+
 <title>BitcoinProof</title>
 
 <style>
+
 body{
 font-family:Arial;
+margin:0;
 background:#0f172a;
 color:white;
-text-align:center;
-padding:40px;
 }
 
-.container{
-max-width:700px;
-margin:auto;
+header{
+background:#020617;
+padding:20px;
+display:flex;
+justify-content:space-between;
+align-items:center;
 }
 
-input,textarea{
-width:100%;
-padding:10px;
-margin:10px 0;
-border-radius:5px;
-border:none;
+.logo{
+font-size:22px;
+font-weight:bold;
+color:#f7931a;
 }
 
-button{
-background:#f7931a;
+nav a{
 color:white;
-padding:12px 20px;
-border:none;
-border-radius:5px;
-cursor:pointer;
+margin-left:20px;
+text-decoration:none;
 }
 
-button:hover{
-opacity:0.8;
+.hero{
+text-align:center;
+padding:100px 20px;
+}
+
+.hero h1{
+font
+size:48px;
+margin-bottom:20px;
+}
+
+.hero p{
+color:#94a3b8;
+font-size:18px;
+margin-bottom:30px;
+}
+
+.button{
+background:#f7931a;
+padding:14px 28px;
+border-radius:6px;
+text-decoration:none;
+color:white;
+font-weight:bold;
+}
+
+.features{
+display:flex;
+justify-content:center;
+gap:40px;
+padding:60px 20px;
+flex-wrap:wrap;
 }
 
 .card{
 background:#1e293b;
-padding:20px;
+padding:30px;
 border-radius:10px;
-margin-top:20px;
+width:250px;
+text-align:center;
 }
+
+footer{
+text-align:center;
+padding:40px;
+color:#64748b;
+}
+
 </style>
 
 </head>
 
 <body>
 
-<div class="container">
+<header>
 
-<h1>BitcoinProof</h1>
-<p>Bitcoin timestamp proof engine</p>
+<div class="logo">BitcoinProof</div>
+
+<nav>
+
+<a href="/">Home</a>
+<a href="/explorer">Explorer</a>
+<a href="/dashboard">Dashboard</a>
+
+</nav>
+
+</header>
+
+<section class="hero">
+
+<h1>Bitcoin Timestamp Proof</h1>
+
+<p>Anchor your data into the Bitcoin blockchain</p>
+
+<a class="button" href="/dashboard">Create Proof</a>
+
+</section>
+
+<section class="features">
 
 <div class="card">
 
-<h2>Create proof</h2>
+<h3>Immutable</h3>
 
-<textarea id="message" placeholder="Message or document hash"></textarea>
-
-<input id="address" placeholder="Bitcoin address">
-
-<input id="signature" placeholder="Signature (optional)">
-
-<button onclick="verify()">Create Proof</button>
+<p>Your proofs are secured by Bitcoin cryptography</p>
 
 </div>
 
 <div class="card">
 
-<h2>Result</h2>
+<h3>Merkle Trees</h3>
 
-<pre id="result"></pre>
-
-</div>
+<p>Efficient blockchain anchoring using Merkle roots</p>
 
 </div>
 
-<script>
+<div class="card">
 
-async function verify(){
+<h3>Open API</h3>
 
-let message=document.getElementById("message").value
-let address=document.getElementById("address").value
-let signature=document.getElementById("signature").value
+<p>Developers can integrate proof verification easily</p>
 
-let response=await fetch("/verify",{
-method:"POST",
-headers:{
-"Content-Type":"application/json",
-"X-API-KEY":"dev_key_123456"
-},
-body:JSON.stringify({
-message:message,
-address:address,
-signature:signature
-})
-})
+</div>
 
-let data=await response.json()
+</section>
 
-document.getElementById("result").innerText=
-JSON.stringify(data,null,2)
+<footer>
 
-}
+BitcoinProof — Blockchain Timestamp Engine
 
-</script>
+</footer>
 
 </body>
 </html>
