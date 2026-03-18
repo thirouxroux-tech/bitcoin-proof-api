@@ -16,9 +16,9 @@ PROOF_FILE = "proofs.json"
 API_KEY = "dev_key_123456"
 
 
-# -------------------------
+# ------------------------
 # helpers
-# -------------------------
+# ------------------------
 
 def sha256(data):
     return hashlib.sha256(data.encode()).hexdigest()
@@ -39,19 +39,35 @@ def save_proofs(proofs):
         json.dump(proofs, f, indent=2)
 
 
-# -------------------------
-# root
-# -------------------------
+# ------------------------
+# HOME PAGE
+# ------------------------
 
-@app.get("/")
-def root():
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
 
-    return {"status": "Bitcoin Proof API running"}
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request}
+    )
 
 
-# -------------------------
-# verify proof
-# -------------------------
+# ------------------------
+# VERIFY PAGE
+# ------------------------
+
+@app.get("/verify-page", response_class=HTMLResponse)
+def verify_page(request: Request):
+
+    return templates.TemplateResponse(
+        "verify.html",
+        {"request": request}
+    )
+
+
+# ------------------------
+# CREATE PROOF
+# ------------------------
 
 @app.post("/verify")
 async def verify(data: dict, x_api_key: str = Header(None)):
@@ -86,42 +102,43 @@ async def verify(data: dict, x_api_key: str = Header(None)):
     return proof
 
 
-# -------------------------
-# list proofs
-# -------------------------
+# ------------------------
+# LIST PROOFS
+# ------------------------
 
 @app.get("/proofs")
-def get_proofs():
+def proofs():
 
-    proofs = load_proofs()
+    data = load_proofs()
 
     return {
 
-        "count": len(proofs),
-        "proofs": proofs
+        "count": len(data),
+        "proofs": data
 
     }
 
 
-# -------------------------
-# get single proof
-# -------------------------
+# ------------------------
+# SINGLE PROOF
+# ------------------------
 
 @app.get("/proof/{verification_id}")
-def get_proof(verification_id: str):
+def proof(verification_id: str):
 
     proofs = load_proofs()
 
     for p in proofs:
+
         if p["verification_id"] == verification_id:
             return p
 
     return {"error": "proof not found"}
 
 
-# -------------------------
-# merkle tree
-# -------------------------
+# ------------------------
+# MERKLE ROOT
+# ------------------------
 
 @app.get("/merkle")
 def merkle():
@@ -160,9 +177,9 @@ def merkle():
     }
 
 
-# -------------------------
-# anchor (bitcoin root)
-# -------------------------
+# ------------------------
+# BITCOIN ANCHOR
+# ------------------------
 
 @app.get("/anchor")
 def anchor():
@@ -182,9 +199,9 @@ def anchor():
     }
 
 
-# -------------------------
-# merkle proof
-# -------------------------
+# ------------------------
+# MERKLE PROOF
+# ------------------------
 
 @app.get("/merkle-proof/{verification_id}")
 def merkle_proof(verification_id: str):
@@ -245,9 +262,9 @@ def merkle_proof(verification_id: str):
     }
 
 
-# -------------------------
-# explorer page
-# -------------------------
+# ------------------------
+# EXPLORER PAGE
+# ------------------------
 
 @app.get("/explorer", response_class=HTMLResponse)
 def explorer(request: Request):
@@ -255,16 +272,14 @@ def explorer(request: Request):
     proofs = load_proofs()
 
     return templates.TemplateResponse(
-
         "explorer.html",
         {"request": request, "proofs": proofs}
-
     )
 
 
-# -------------------------
-# dashboard page
-# -------------------------
+# ------------------------
+# DASHBOARD PAGE
+# ------------------------
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
@@ -272,15 +287,6 @@ def dashboard(request: Request):
     proofs = load_proofs()
 
     return templates.TemplateResponse(
-
         "dashboard.html",
         {"request": request, "proofs": proofs}
-
-    )
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
     )
