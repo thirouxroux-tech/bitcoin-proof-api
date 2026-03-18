@@ -1,92 +1,34 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-<title>Create Proof</title>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="/static/style.css">
+<title>BitcoinProof</title>
 </head>
 
 <body>
 
-<h1>Create Bitcoin Proof</h1>
+<header>
+<b>BitcoinProof</b>
+<nav>
+<a href="/verify-page">Create</a>
+<a href="/explorer">Explorer</a>
+</nav>
+</header>
 
-<h2>Text proof</h2>
+<div class="container">
 
-<form id="textForm">
+<h1>Prove anything. Forever.</h1>
 
-<input type="text" id="message" placeholder="Message">
+<p>
+Anchor your data in the Bitcoin blockchain.
+</p>
 
-<button type="submit">Create Proof</button>
+<a href="/verify-page">
+<button>Create Proof</button>
+</a>
 
-</form>
-
-<h2>File proof</h2>
-
-<form id="fileForm" enctype="multipart/form-data">
-
-<input type="file" id="file">
-
-<button type="submit">Upload File</button>
-
-</form>
-
-<pre id="result"></pre>
-
-<script>
-
-document.getElementById("textForm").onsubmit = async function(e){
-
-e.preventDefault()
-
-let message = document.getElementById("message").value
-
-let res = await fetch("/verify",{
-
-method:"POST",
-
-headers:{
-"Content-Type":"application/json",
-"X-API-KEY":"dev_key_123456"
-},
-
-body:JSON.stringify({message})
-
-})
-
-let data = await res.json()
-
-document.getElementById("result").innerText =
-JSON.stringify(data,null,2)
-
-}
-
-
-document.getElementById("fileForm").onsubmit = async function(e){
-
-e.preventDefault()
-
-let file = document.getElementById("file").files[0]
-
-let form = new FormData()
-
-form.append("file",file)
-
-let res = await fetch("/verify-file",{
-
-method:"POST",
-
-body:form
-
-})
-
-let data = await res.json()
-
-document.getElementById("result").innerText =
-JSON.stringify(data,null,2)
-
-}
-
-</script>
+</div>
 
 </body>
-
 </html>

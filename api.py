@@ -1,318 +1,98 @@
-from fastapi import UploadFile, File
-from fastapi import FastAPI, Request, Header
+from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+
 import hashlib
+import uuid
 import json
 import os
-import uuid
 from datetime import datetime
 
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-PROOF_FILE = "proofs.json"
+PROOFS_FILE = "proofs.json"
 
-API_KEY = "dev_key_123456"
-
-
-# ------------------------
-# helpers
-# ------------------------
-
-def sha256(data):
-    return hashlib.sha256(data.encode()).hexdigest()
-
+# ======================
+# FILE STORAGE
+# ======================
 
 def load_proofs():
-
-    if not os.path.exists(PROOF_FILE):
+    if not os.path.exists(PROOFS_FILE):
         return []
-
-    with open(PROOF_FILE, "r") as f:
+    with open(PROOFS_FILE, "r") as f:
         return json.load(f)
 
+def save_proofs(data):
+    with open(PROOFS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
-def save_proofs(proofs):
-
-    with open(PROOF_FILE, "w") as f:
-        json.dump(proofs, f, indent=2)
-
-
-# ------------------------
-# HOME PAGE
-# ------------------------
+# ======================
+# HTML ROUTES
+# ======================
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
-    )
-
-
-# ------------------------
-# VERIFY PAGE
-# ------------------------
 
 @app.get("/verify-page", response_class=HTMLResponse)
 def verify_page(request: Request):
+    return templates.TemplateResponse("verify.html", {"request": request})
 
-    return templates.TemplateResponse(
-        "verify.html",
-        {"request": request}
-    )
-
-
-# ------------------------
-# CREATE PROOF
-# ------------------------
-
-@app.post("/verify")
-async def verify(data: dict, x_api_key: str = Header(None)):
-
-    if x_api_key != API_KEY:
-        return {"error": "invalid api key"}
-
-    message = data.get("message")
-
-    if not message:
-        return {"error": "no message"}
-
-    message_hash = sha256(message)
-
-    verification_id = str(uuid.uuid4())[:8]
-
-    proof = {
-
-        "verification_id": verification_id,
-        "message": message,
-        "message_hash": message_hash,
-        "timestamp": datetime.utcnow().isoformat()
-
-    }
-
-    proofs = load_proofs()
-
-    proofs.append(proof)
-
-    save_proofs(proofs)
-
-    return proof
-
-
-# ------------------------
-# LIST PROOFS
-# ------------------------
-
-@app.get("/proofs")
-def proofs():
-
-    data = load_proofs()
-
-    return {
-
-        "count": len(data),
-        "proofs": data
-
-    }
-
-
-# ------------------------
-# SINGLE PROOF
-# ------------------------
-
-@app.get("/proof/{verification_id}")
-def proof(verification_id: str):
-
-    proofs = load_proofs()
-
-    for p in proofs:
-
-        if p["verification_id"] == verification_id:
-            return p
-
-    return {"error": "proof not found"}
-
-
-# ------------------------
-# MERKLE ROOT
-# ------------------------
-
-@app.get("/merkle")
-def merkle():
-
-    proofs = load_proofs()
-
-    hashes = [p["message_hash"] for p in proofs]
-
-    if len(hashes) == 0:
-        return {"proof_count": 0, "merkle_root": None}
-
-    layer = hashes
-
-    while len(layer) > 1:
-
-        new_layer = []
-
-        for i in range(0, len(layer), 2):
-
-            left = layer[i]
-
-            if i + 1 < len(layer):
-                right = layer[i + 1]
-            else:
-                right = left
-
-            new_layer.append(sha256(left + right))
-
-        layer = new_layer
-
-    return {
-
-        "proof_count": len(hashes),
-        "merkle_root": layer[0]
-
-    }
-
-
-# ------------------------
-# BITCOIN ANCHOR
-# ------------------------
-
-@app.get("/anchor")
-def anchor():
-
-    result = merkle()
-
-    root = result["merkle_root"]
-
-    if not root:
-        return {"error": "no proofs"}
-
-    return {
-
-        "merkle_root": root,
-        "bitcoin_op_return": root[:80]
-
-    }
-
-
-# ------------------------
-# MERKLE PROOF
-# ------------------------
-
-@app.get("/merkle-proof/{verification_id}")
-def merkle_proof(verification_id: str):
-
-    proofs = load_proofs()
-
-    target = None
-
-    for p in proofs:
-        if p["verification_id"] == verification_id:
-            target = p
-            break
-
-    if target is None:
-        return {"error": "proof not found"}
-
-    hashes = [p["message_hash"] for p in proofs]
-
-    index = hashes.index(target["message_hash"])
-
-    proof_path = []
-
-    layer = hashes
-
-    while len(layer) > 1:
-
-        new_layer = []
-
-        for i in range(0, len(layer), 2):
-
-            left = layer[i]
-
-            if i + 1 < len(layer):
-                right = layer[i + 1]
-            else:
-                right = left
-
-            if i == index or i + 1 == index:
-
-                sibling = right if i == index else left
-
-                proof_path.append(sibling)
-
-                index = len(new_layer)
-
-            new_hash = sha256(left + right)
-
-            new_layer.append(new_hash)
-
-        layer = new_layer
-
-    return {
-
-        "verification_id": verification_id,
-        "merkle_root": layer[0],
-        "merkle_proof": proof_path
-
-    }
-
-
-# ------------------------
-# EXPLORER PAGE
-# ------------------------
 
 @app.get("/explorer", response_class=HTMLResponse)
-def explorer(request: Request):
+def explorer_page(request: Request):
+    return templates.TemplateResponse("explorer.html", {"request": request})
+
+
+@app.get("/proof-page/{vid}", response_class=HTMLResponse)
+def proof_page(request: Request, vid: str):
 
     proofs = load_proofs()
 
-    return templates.TemplateResponse(
-        "explorer.html",
-        {"request": request, "proofs": proofs}
-    )
+    for p in proofs:
+        if p["verification_id"] == vid:
+            return templates.TemplateResponse(
+                "proof.html",
+                {"request": request, "proof": p}
+            )
 
+    return HTMLResponse("Proof not found", status_code=404)
 
-# ------------------------
-# DASHBOARD PAGE
-# ------------------------
+# ======================
+# API
+# ======================
 
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request):
+@app.post("/verify")
+def verify(data: dict):
 
-    proofs = load_proofs()
+    message = data.get("message", "")
 
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "proofs": proofs}
-    )
-@app.post("/verify-file")
-async def verify_file(file: UploadFile = File(...)):
+    if message == "":
+        return {"error": "empty message"}
 
-    content = await file.read()
-
-    file_hash = hashlib.sha256(content).hexdigest()
-
-    verification_id = str(uuid.uuid4())[:8]
+    message_hash = hashlib.sha256(message.encode()).hexdigest()
+    vid = str(uuid.uuid4())[:8]
 
     proof = {
-
-        "verification_id": verification_id,
-        "filename": file.filename,
-        "message_hash": file_hash,
+        "verification_id": vid,
+        "message_hash": message_hash,
         "timestamp": datetime.utcnow().isoformat()
-
     }
 
     proofs = load_proofs()
-
     proofs.append(proof)
-
     save_proofs(proofs)
 
     return proof
+
+
+@app.get("/proofs")
+def get_proofs():
+    return load_proofs()
+app.mount("/static", StaticFiles(directory="static"), name="static")

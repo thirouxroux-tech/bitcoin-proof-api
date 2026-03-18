@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="/static/style.css">
+<title>Create Proof</title>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Create Proof</h1>
+
+<input id="msg" placeholder="Enter text">
+
+<button onclick="send()">Create</button>
+
+<pre id="result"></pre>
+
+</div>
+
+<script>
+
+async function send(){
+
+let msg = document.getElementById("msg").value
+
+let res = await fetch("/verify",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({message:msg})
+})
+
+let data = await res.json()
+
+document.getElementById("result").innerText =
+"Proof created:\n\n" +
+window.location.origin + "/proof-page/" + data.verification_id
+
+}
+
+</script>
+
+</body>
+</html>
