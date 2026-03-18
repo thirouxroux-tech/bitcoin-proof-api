@@ -1,3 +1,4 @@
+from fastapi import UploadFile, File
 from fastapi import FastAPI, Request, Header
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -290,3 +291,28 @@ def dashboard(request: Request):
         "dashboard.html",
         {"request": request, "proofs": proofs}
     )
+@app.post("/verify-file")
+async def verify_file(file: UploadFile = File(...)):
+
+    content = await file.read()
+
+    file_hash = hashlib.sha256(content).hexdigest()
+
+    verification_id = str(uuid.uuid4())[:8]
+
+    proof = {
+
+        "verification_id": verification_id,
+        "filename": file.filename,
+        "message_hash": file_hash,
+        "timestamp": datetime.utcnow().isoformat()
+
+    }
+
+    proofs = load_proofs()
+
+    proofs.append(proof)
+
+    save_proofs(proofs)
+
+    return proof

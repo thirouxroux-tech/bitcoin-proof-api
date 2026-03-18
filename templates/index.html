@@ -2,149 +2,91 @@
 <html>
 
 <head>
-
-<title>BitcoinProof</title>
-
-<style>
-
-body{
-font-family:Arial;
-margin:0;
-background:#0f172a;
-color:white;
-}
-
-header{
-background:#020617;
-padding:20px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-}
-
-.logo{
-font-size:22px;
-font-weight:bold;
-color:#f7931a;
-}
-
-nav a{
-color:white;
-margin-left:20px;
-text-decoration:none;
-}
-
-.hero{
-text-align:center;
-padding:100px 20px;
-}
-
-.hero h1{
-font
-size:48px;
-margin-bottom:20px;
-}
-
-.hero p{
-color:#94a3b8;
-font-size:18px;
-margin-bottom:30px;
-}
-
-.button{
-background:#f7931a;
-padding:14px 28px;
-border-radius:6px;
-text-decoration:none;
-color:white;
-font-weight:bold;
-}
-
-.features{
-display:flex;
-justify-content:center;
-gap:40px;
-padding:60px 20px;
-flex-wrap:wrap;
-}
-
-.card{
-background:#1e293b;
-padding:30px;
-border-radius:10px;
-width:250px;
-text-align:center;
-}
-
-footer{
-text-align:center;
-padding:40px;
-color:#64748b;
-}
-
-</style>
-
+<title>Create Proof</title>
 </head>
 
 <body>
 
-<header>
+<h1>Create Bitcoin Proof</h1>
 
-<div class="logo">BitcoinProof</div>
+<h2>Text proof</h2>
 
-<nav>
+<form id="textForm">
 
-<a href="/">Home</a>
-<a href="/explorer">Explorer</a>
-<a href="/dashboard">Dashboard</a>
+<input type="text" id="message" placeholder="Message">
 
-</nav>
+<button type="submit">Create Proof</button>
 
-</header>
+</form>
 
-<section class="hero">
+<h2>File proof</h2>
 
-<h1>Bitcoin Timestamp Proof</h1>
+<form id="fileForm" enctype="multipart/form-data">
 
-<p>Anchor your data into the Bitcoin blockchain</p>
+<input type="file" id="file">
 
-<a class="button" href="/dashboard">Create Proof</a>
+<button type="submit">Upload File</button>
 
-</section>
+</form>
 
-<section class="features">
+<pre id="result"></pre>
 
-<div class="card">
+<script>
 
-<h3>Immutable</h3>
+document.getElementById("textForm").onsubmit = async function(e){
 
-<p>Your proofs are secured by Bitcoin cryptography</p>
+e.preventDefault()
 
-</div>
+let message = document.getElementById("message").value
 
-<div class="card">
+let res = await fetch("/verify",{
 
-<h3>Merkle Trees</h3>
+method:"POST",
 
-<p>Efficient blockchain anchoring using Merkle roots</p>
+headers:{
+"Content-Type":"application/json",
+"X-API-KEY":"dev_key_123456"
+},
 
-</div>
+body:JSON.stringify({message})
 
-<div class="card">
+})
 
-<h3>Open API</h3>
+let data = await res.json()
 
-<p>Developers can integrate proof verification easily</p>
+document.getElementById("result").innerText =
+JSON.stringify(data,null,2)
 
-</div>
+}
 
-</section>
 
-<footer>
+document.getElementById("fileForm").onsubmit = async function(e){
 
-BitcoinProof — Blockchain Timestamp Engine
+e.preventDefault()
 
-</footer>
+let file = document.getElementById("file").files[0]
+
+let form = new FormData()
+
+form.append("file",file)
+
+let res = await fetch("/verify-file",{
+
+method:"POST",
+
+body:form
+
+})
+
+let data = await res.json()
+
+document.getElementById("result").innerText =
+JSON.stringify(data,null,2)
+
+}
+
+</script>
 
 </body>
+
 </html>
