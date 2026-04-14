@@ -7,11 +7,11 @@ import qrcode
 from io import BytesIO
 import secrets
 import os
-BLOCKCYPHER_API_KEY = os.getenv("e57d6275d53846259d6d46aca3981b6a")
+
 app = FastAPI()
 
 # ===== CONFIG =====
-BLOCKCYPHER_API_KEY = "e57d6275d53846259d6d46aca3981b6a"
+BLOCKCYPHER_API_KEY = os.getenv("e57d6275d53846259d6d46aca3981b6a")  # SAFE
 MIN_PAYMENT_SATS = 10000
 FREE_LIMIT = 5
 
@@ -45,35 +45,66 @@ def hash_data(data: str):
 def generate_api_key():
     return "sk_" + secrets.token_hex(16)
 
-# ===== BTC =====
+# ===== BTC SAFE =====
 def create_btc_address():
     try:
-        if not e57d6275d53846259d6d46aca3981b6a:
-            return {"error": "missing api key"}
+        if not BLOCKCYPHER_API_KEY:
+            return {"error": "API key missing"}
 
-        url = f"https://api.blockcypher.com/v1/btc/main/addrs?token={BLOCKCYPHER_API_KEY}"
+        url = f"https://api.blockcypher.com/v1/btc/main/addrs?token={e57d6275d53846259d6d46aca3981b6a}"
         res = requests.post(url)
         return res.json()
 
     except Exception as e:
         return {"error": str(e)}
+
 def get_balance(address):
-    url = f"https://api.blockcypher.com/v1/btc/main/addrs/{address}"
-    return requests.get(url).json().get("final_balance", 0)
+    try:
+        url = f"https://api.blockcypher.com/v1/btc/main/addrs/{address}"
+        res = requests.get(url)
+        return res.json().get("final_balance", 0)
+    except:
+        return 0
 
 # ===== ROUTES =====
 
 @app.get("/")
 def home():
-    return {"message": "🚀 Bitcoin SaaS OK"}
+    return {"message": "🚀 Bitcoin SaaS LIVE"}
 
-# 💳 paiement + api key
+# 💳 paiement
 @app.post("/pay")
 def pay():
     wallet = create_btc_address()
 
     if "error" in wallet:
         return wallet
+
+    address = wallet.get("address")
+
+    if not address:
+        raise HTTPException(status_code=500, detail="BTC error")
+
+    api_key = generate_api_key()
+
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (btc_address) VALUES (?)",
+        (address,)
+    )
+
+    cursor.execute(
+        "INSERT INTO api_keys (api_key, btc_address) VALUES (?, ?)",
+        (api_key, address)
+    )
+
+    conn.commit()
+
+    return {
+        "btc_address": address,
+        "api_key": api_key,
+        "amount_required_sats": MIN_PAYMENT_SATS
+    }
+
 # 🔔 check paiement
 @app.get("/check/{address}")
 def check(address: str):
@@ -118,11 +149,9 @@ def proof(data: str, api_key: str):
     )
     user = cursor.fetchone()
 
-    # free limit
     if user[0] == 0 and usage >= FREE_LIMIT:
         raise HTTPException(status_code=402, detail="Free limit reached")
 
-    # increment usage
     cursor.execute(
         "UPDATE api_keys SET usage_count = usage_count + 1 WHERE api_key=?",
         (api_key,)
@@ -188,6 +217,11 @@ def ui():
     async function pay(){
         let r = await fetch('/pay',{method:'POST'});
         let d = await r.json();
+
+        if(d.error){
+            document.getElementById('status').innerHTML = d.error;
+            return;
+        }
 
         addr = d.btc_address;
 
