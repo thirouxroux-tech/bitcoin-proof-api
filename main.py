@@ -11,8 +11,8 @@ import os
 app = FastAPI()
 
 # ===== CONFIG =====
-BLOCKCYPHER_API_KEY = os.getenv("e57d6275d53846259d6d46aca3981b6a")  # SAFE
-MIN_PAYMENT_SATS = 10000
+BLOCKCYPHER_API_KEY = os.getenv("e57d6275d53846259d6d46aca3981b6a")
+MIN_PAYMENT_SATS = 10000   # 10k sats
 FREE_LIMIT = 5
 
 # ===== DB =====
@@ -45,15 +45,17 @@ def hash_data(data: str):
 def generate_api_key():
     return "sk_" + secrets.token_hex(16)
 
-# ===== BTC SAFE =====
+def sats_to_btc(sats):
+    return sats / 100_000_000
+
+# ===== BTC =====
 def create_btc_address():
     try:
         if not BLOCKCYPHER_API_KEY:
-            return {"error": "API key missing"}
+            return {"error": "Missing API key"}
 
         url = f"https://api.blockcypher.com/v1/btc/main/addrs?token={e57d6275d53846259d6d46aca3981b6a}"
-        res = requests.post(url)
-        return res.json()
+        return requests.post(url).json()
 
     except Exception as e:
         return {"error": str(e)}
@@ -61,8 +63,7 @@ def create_btc_address():
 def get_balance(address):
     try:
         url = f"https://api.blockcypher.com/v1/btc/main/addrs/{address}"
-        res = requests.get(url)
-        return res.json().get("final_balance", 0)
+        return requests.get(url).json().get("final_balance", 0)
     except:
         return 0
 
@@ -81,7 +82,6 @@ def pay():
         return wallet
 
     address = wallet.get("address")
-
     if not address:
         raise HTTPException(status_code=500, detail="BTC error")
 
@@ -102,7 +102,8 @@ def pay():
     return {
         "btc_address": address,
         "api_key": api_key,
-        "amount_required_sats": MIN_PAYMENT_SATS
+        "amount_sats": MIN_PAYMENT_SATS,
+        "amount_btc": sats_to_btc(MIN_PAYMENT_SATS)
     }
 
 # 🔔 check paiement
@@ -125,6 +126,7 @@ def check(address: str):
 
     return {
         "paid": balance >= MIN_PAYMENT_SATS,
+        "balance_sats": balance,
         "premium": bool(user[0]) if user else False
     }
 
@@ -185,34 +187,45 @@ def dashboard(api_key: str):
         "premium": bool(user[0])
     }
 
-# 📱 QR
-@app.get("/qr/{address}")
-def qr(address: str):
-    img = qrcode.make(f"bitcoin:{address}")
+# 📱 QR avec montant BTC
+@app.get("/qr/{address}/{amount}")
+def qr(address: str, amount: int):
+    btc_amount = sats_to_btc(amount)
+    uri = f"bitcoin:{address}?amount={btc_amount}"
+
+    img = qrcode.make(uri)
+
     buf = BytesIO()
     img.save(buf)
     buf.seek(0)
+
     return StreamingResponse(buf, media_type="image/png")
 
-# 🌐 UI
+# 🌐 UI PRO BTC
 @app.get("/app", response_class=HTMLResponse)
 def ui():
     return """
     <html>
-    <body style="text-align:center;font-family:Arial;background:#111;color:white">
+    <body style="text-align:center;font-family:Arial;background:#0b0f1a;color:white">
 
-    <h1>🚀 Bitcoin API</h1>
-    <p>Free: 5 requests | Premium: 10€</p>
+    <h1>₿ Bitcoin Proof API</h1>
+    <p>Free: 5 requests</p>
+    <h2>Premium: <span id="btc"></span> BTC</h2>
+    <p id="sats"></p>
 
-    <button onclick="pay()">Unlock Premium</button>
+    <button onclick="pay()" style="padding:10px 20px;background:#f7931a;border:none;color:white;font-size:16px;cursor:pointer;">
+    Unlock Premium
+    </button>
 
     <p id="addr"></p>
-    <img id="qr" width="200"/>
+    <img id="qr" width="220"/>
+
     <p id="key"></p>
     <p id="status"></p>
 
     <script>
     let addr = null;
+    let amount = null;
 
     async function pay(){
         let r = await fetch('/pay',{method:'POST'});
@@ -224,10 +237,17 @@ def ui():
         }
 
         addr = d.btc_address;
+        amount = d.amount_sats;
 
-        document.getElementById('addr').innerHTML = addr;
-        document.getElementById('qr').src = '/qr/'+addr;
-        document.getElementById('key').innerHTML = "API KEY: "+d.api_key;
+        document.getElementById('addr').innerHTML = "Send BTC to: " + addr;
+        document.getElementById('btc').innerHTML = d.amount_btc;
+        document.getElementById('sats').innerHTML = d.amount_sats + " sats";
+
+        document.getElementById('qr').src =
+            '/qr/' + addr + '/' + amount;
+
+        document.getElementById('key').innerHTML =
+            "API KEY: " + d.api_key;
     }
 
     async function check(){
@@ -237,7 +257,7 @@ def ui():
         let d = await r.json();
 
         document.getElementById('status').innerHTML =
-            d.premium ? "✅ Premium" : "⏳ Waiting...";
+            d.premium ? "✅ Premium unlocked" : "⏳ Waiting payment...";
     }
 
     setInterval(check,4000);
