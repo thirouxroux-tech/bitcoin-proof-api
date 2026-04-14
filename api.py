@@ -1,98 +1,187 @@
-from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-
 import hashlib
 import uuid
 import json
 import os
-from datetime import datetime
 
 app = FastAPI()
 
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-PROOFS_FILE = "proofs.json"
+FILE = "proofs.json"
 
 # ======================
-# FILE STORAGE
+# LOAD / SAVE
 # ======================
 
-def load_proofs():
-    if not os.path.exists(PROOFS_FILE):
-        return []
-    with open(PROOFS_FILE, "r") as f:
-        return json.load(f)
+def load():
+    if not os.path.exists(FILE):
+        return {}
+    try:
+        with open(FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
 
-def save_proofs(data):
-    with open(PROOFS_FILE, "w") as f:
+def save(data):
+    with open(FILE, "w") as f:
         json.dump(data, f, indent=2)
 
 # ======================
-# HTML ROUTES
+# HOME
 # ======================
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-
-@app.get("/verify-page", response_class=HTMLResponse)
-def verify_page(request: Request):
-    return templates.TemplateResponse("verify.html", {"request": request})
-
-
-@app.get("/explorer", response_class=HTMLResponse)
-def explorer_page(request: Request):
-    return templates.TemplateResponse("explorer.html", {"request": request})
-
-
-@app.get("/proof-page/{vid}", response_class=HTMLResponse)
-def proof_page(request: Request, vid: str):
-
-    proofs = load_proofs()
-
-    for p in proofs:
-        if p["verification_id"] == vid:
-            return templates.TemplateResponse(
-                "proof.html",
-                {"request": request, "proof": p}
-            )
-
-    return HTMLResponse("Proof not found", status_code=404)
+def home():
+    return """
+    <h1>Bitcoin Proof</h1>
+    <a href="/verify-page">Create Proof</a>
+    <br><br>
+    <a href="/dashboard">Dashboard</a>
+    <br><br>
+    <a href="/explorer">Explorer</a>
+    """
 
 # ======================
-# API
+# VERIFY PAGE
+# ======================
+
+@app.get("/verify-page", response_class=HTMLResponse)
+def verify_page():
+    return """
+    <h1>Create Proof</h1>
+
+    <input id="msg" placeholder="Enter text">
+    <button onclick="send()">Create</button>
+
+    <div id="result"></div>
+
+    <script>
+    async function send(){
+
+        let msg = document.getElementById("msg").value
+
+        let res = await fetch("/verify",{
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body: JSON.stringify({message: msg})
+        })
+
+        let data = await res.json()
+
+        if(data.error){
+            document.getElementById("result").innerText = data.error
+            return
+        }
+
+        let url = "/proof/" + data.id
+
+        document.getElementById("result").innerHTML =
+        "<p>Proof created</p><a href='" + url + "'>View proof</a>"
+    }
+    </script>
+    """
+
+# ======================
+# CREATE PROOF
 # ======================
 
 @app.post("/verify")
 def verify(data: dict):
 
-    message = data.get("message", "")
+    msg = data.get("message", "")
 
-    if message == "":
+    if msg == "":
         return {"error": "empty message"}
 
-    message_hash = hashlib.sha256(message.encode()).hexdigest()
-    vid = str(uuid.uuid4())[:8]
+    h = hashlib.sha256(msg.encode()).hexdigest()
+    pid = str(uuid.uuid4())[:8]
 
-    proof = {
-        "verification_id": vid,
-        "message_hash": message_hash,
-        "timestamp": datetime.utcnow().isoformat()
+    proofs = load()
+
+    proofs[pid] = {
+        "id": pid,
+        "message": msg,
+        "hash": h
     }
 
-    proofs = load_proofs()
-    proofs.append(proof)
-    save_proofs(proofs)
+    save(proofs)
 
-    return proof
+    return {"id": pid}
 
+# ======================
+# PROOF PAGE
+# ======================
 
-@app.get("/proofs")
-def get_proofs():
-    return load_proofs()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+@app.get("/proof/{pid}", response_class=HTMLResponse)
+def proof(pid: str):
+
+    proofs = load()
+
+    if pid not in proofs:
+        return HTMLResponse("<h1>Proof not found</h1>", status_code=404)
+
+    p = proofs[pid]
+
+    return f"""
+    <h1>Proof</h1>
+
+    <p><b>ID:</b> {p['id']}</p>
+    <p><b>Message:</b> {p['message']}</p>
+    <p><b>Hash:</b> {p['hash']}</p>
+
+    <br>
+    <a href="/dashboard">Dashboard</a>
+    """
+
+# ======================
+# DASHBOARD
+# ======================
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+
+    proofs = load()
+
+    html = "<h1>Dashboard</h1>"
+
+    if len(proofs) == 0:
+        html += "<p>No proofs yet</p>"
+
+    for p in proofs.values():
+        html += f"""
+        <div style="margin:10px;padding:10px;border:1px solid white;">
+            <p><b>ID:</b> {p['id']}</p>
+            <p><b>Message:</b> {p['message']}</p>
+            <p><b>Hash:</b> {p['hash']}</p>
+            <a href="/proof/{p['id']}">View proof</a>
+        </div>
+        """
+
+    html += "<br><a href='/'>Home</a>"
+
+    return html
+
+# ======================
+# EXPLORER
+# ======================
+
+@app.get("/explorer", response_class=HTMLResponse)
+def explorer():
+
+    proofs = load()
+
+    html = "<h1>All Proofs</h1>"
+
+    for p in proofs.values():
+        html += f"""
+        <div>
+            <a href="/proof/{p['id']}">{p['id']}</a>
+            - {p['hash']}
+        </div>
+        """
+
+    html += "<br><a href='/'>Home</a>"
+
+    return html

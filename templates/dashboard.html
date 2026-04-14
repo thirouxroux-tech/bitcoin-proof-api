@@ -1,53 +1,77 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-<title>Create Proof</title>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
 
-<h1>Create Bitcoin Proof</h1>
+<div class="container">
 
-<form id="proofForm">
+<h2>Login</h2>
+<input id="email" placeholder="email">
+<button onclick="login()">Login</button>
 
-<input type="text" id="message" placeholder="Message">
-<button type="submit">Create Proof</button>
+<h2>Create Proof</h2>
+<input id="msg" placeholder="text">
+<button onclick="send()">Create</button>
 
-</form>
+<div id="result"></div>
 
-<pre id="result"></pre>
+</div>
 
 <script>
 
-document.getElementById("proofForm").onsubmit = async function(e){
+async function login(){
 
-e.preventDefault()
+let email = document.getElementById("email").value
 
-let message = document.getElementById("message").value
-
-let res = await fetch("/verify",{
-
+let res = await fetch("/login",{
 method:"POST",
-
-headers:{
-"Content-Type":"application/json",
-"X-API-KEY":"dev_key_123456"
-},
-
-body:JSON.stringify({message})
-
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({email:email})
 })
 
 let data = await res.json()
 
-document.getElementById("result").innerText =
-JSON.stringify(data,null,2)
+localStorage.setItem("token", data.token)
+
+alert("Logged in")
+
+}
+
+async function send(){
+
+let msg = document.getElementById("msg").value
+
+let res = await fetch("/verify",{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+"Authorization": localStorage.getItem("token")
+},
+body:JSON.stringify({message:msg})
+})
+
+let data = await res.json()
+
+if(data.error){
+alert(data.error)
+return
+}
+
+let url = window.location.origin + "/proof-page/" + data.id
+
+document.getElementById("result").innerHTML =
+`
+<p>Proof created</p>
+<a href="${url}" target="_blank">View proof</a>
+<p>${url}</p>
+`
 
 }
 
 </script>
 
 </body>
-
 </html>

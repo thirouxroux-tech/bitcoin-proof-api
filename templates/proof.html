@@ -1,48 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
 <link rel="stylesheet" href="/static/style.css">
-<title>Explorer</title>
 </head>
 
 <body>
 
 <div class="container">
 
-<h1>Explorer</h1>
+<h1>Proof</h1>
 
-<div id="list"></div>
+<p>ID: {{proof.id}}</p>
+<p>Hash: {{proof.hash}}</p>
+<p>Date: {{proof.timestamp}}</p>
+<p>Anchored: {{proof.anchored}}</p>
 
 </div>
-
-<script>
-
-async function load(){
-
-let res = await fetch("/proofs")
-let data = await res.json()
-
-let div = document.getElementById("list")
-
-data.forEach(p=>{
-
-div.innerHTML += `
-<div class="card">
-<p><b>ID:</b> ${p.verification_id}</p>
-<p><b>Hash:</b> ${p.message_hash}</p>
-<p><b>Time:</b> ${p.timestamp}</p>
-<a href="/proof-page/${p.verification_id}">View</a>
-</div>
-`
-
-})
-
-}
-
-load()
-
-</script>
 
 </body>
 </html>

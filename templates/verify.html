@@ -1,48 +1,47 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
 <link rel="stylesheet" href="/static/style.css">
-<title>Create Proof</title>
 </head>
 
 <body>
 
 <div class="container">
 
-<h1>Create Proof</h1>
+<h2>Login</h2>
+<input id="email" placeholder="email">
+<button onclick="login()">Login</button>
 
-<input id="msg" placeholder="Enter text">
-
+<h2>Create Proof</h2>
+<input id="msg" placeholder="text">
 <button onclick="send()">Create</button>
 
-<pre id="result"></pre>
+<div id="result"></div>
 
 </div>
 
 <script>
 
-async function send(){
+async function login(){
 
-let msg = document.getElementById("msg").value
+let email = document.getElementById("email").value
 
-let res = await fetch("/verify",{
+let res = await fetch("/login",{
 method:"POST",
 headers:{
 "Content-Type":"application/json"
 },
-body:JSON.stringify({message:msg})
+body:JSON.stringify({email:email})
 })
 
 let data = await res.json()
 
-document.getElementById("result").innerText =
-"Proof created:\n\n" +
-window.location.origin + "/proof-page/" + data.verification_id
+console.log("LOGIN:", data)
+
+localStorage.setItem("token", data.token)
+
+alert("Logged in")
 
 }
 
-</script>
-
-</body>
-</html>
+async function send(){

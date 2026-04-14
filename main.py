@@ -1,50 +1,214 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
+import requests
 import hashlib
-from datetime import datetime
-from core import verify_signature
-from certificate import generate_certificate
+import sqlite3
+import qrcode
+from io import BytesIO
+import secrets
+import os
+BLOCKCYPHER_API_KEY = os.getenv("e57d6275d53846259d6d46aca3981b6a")
+app = FastAPI()
 
+# ===== CONFIG =====
+BLOCKCYPHER_API_KEY = "e57d6275d53846259d6d46aca3981b6a"
+MIN_PAYMENT_SATS = 10000
+FREE_LIMIT = 5
 
-if __name__ == "__main__":
+# ===== DB =====
+conn = sqlite3.connect("db.sqlite", check_same_thread=False)
+cursor = conn.cursor()
 
-    print("=" * 40)
-    print(" BITCOIN PROOF ENGINE v2")
-    print("=" * 40)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    btc_address TEXT UNIQUE,
+    premium INTEGER DEFAULT 0
+)
+""")
 
-    address = input("\nAdresse Bitcoin: ")
-    message = input("Message: ")
-    signature = input("Signature: ")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key TEXT UNIQUE,
+    btc_address TEXT,
+    usage_count INTEGER DEFAULT 0
+)
+""")
 
-    print("\nVérification en cours...\n")
+conn.commit()
 
-    if address.startswith("1"):
-        address_type = "Legacy (P2PKH)"
-    elif address.startswith("bc1"):
-        address_type = "SegWit (Bech32)"
-    else:
-        address_type = "Non supporté"
+# ===== UTILS =====
+def hash_data(data: str):
+    return hashlib.sha256(data.encode()).hexdigest()
 
-    result = verify_signature(address, signature, message)
+def generate_api_key():
+    return "sk_" + secrets.token_hex(16)
 
-    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    message_hash = hashlib.sha256(message.encode()).hexdigest()
+# ===== BTC =====
+def create_btc_address():
+    try:
+        if not e57d6275d53846259d6d46aca3981b6a:
+            return {"error": "missing api key"}
 
-    print("=" * 40)
-    print("Adresse :", address)
-    print("Type :", address_type)
-    print("Horodatage :", timestamp)
-    print("Hash message :", message_hash)
+        url = f"https://api.blockcypher.com/v1/btc/main/addrs?token={BLOCKCYPHER_API_KEY}"
+        res = requests.post(url)
+        return res.json()
 
-    if result:
-        print("\nStatut : ✅ VALID SIGNATURE")
-        filename = generate_certificate(
-            address,
-            address_type,
-            message,
-            signature,
-            "VALID"
+    except Exception as e:
+        return {"error": str(e)}
+def get_balance(address):
+    url = f"https://api.blockcypher.com/v1/btc/main/addrs/{address}"
+    return requests.get(url).json().get("final_balance", 0)
+
+# ===== ROUTES =====
+
+@app.get("/")
+def home():
+    return {"message": "🚀 Bitcoin SaaS OK"}
+
+# 💳 paiement + api key
+@app.post("/pay")
+def pay():
+    wallet = create_btc_address()
+
+    if "error" in wallet:
+        return wallet
+# 🔔 check paiement
+@app.get("/check/{address}")
+def check(address: str):
+    balance = get_balance(address)
+
+    if balance >= MIN_PAYMENT_SATS:
+        cursor.execute(
+            "UPDATE users SET premium=1 WHERE btc_address=?",
+            (address,)
         )
-        print("📄 Certificat généré :", filename)
-    else:
-        print("\nStatut : ❌ INVALID SIGNATURE")
+        conn.commit()
 
-    print("=" * 40)
+    cursor.execute(
+        "SELECT premium FROM users WHERE btc_address=?",
+        (address,)
+    )
+    user = cursor.fetchone()
+
+    return {
+        "paid": balance >= MIN_PAYMENT_SATS,
+        "premium": bool(user[0]) if user else False
+    }
+
+# 🔐 API protégée
+@app.post("/v1/proofs")
+def proof(data: str, api_key: str):
+
+    cursor.execute(
+        "SELECT btc_address, usage_count FROM api_keys WHERE api_key=?",
+        (api_key,)
+    )
+    key = cursor.fetchone()
+
+    if not key:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+
+    address, usage = key
+
+    cursor.execute(
+        "SELECT premium FROM users WHERE btc_address=?",
+        (address,)
+    )
+    user = cursor.fetchone()
+
+    # free limit
+    if user[0] == 0 and usage >= FREE_LIMIT:
+        raise HTTPException(status_code=402, detail="Free limit reached")
+
+    # increment usage
+    cursor.execute(
+        "UPDATE api_keys SET usage_count = usage_count + 1 WHERE api_key=?",
+        (api_key,)
+    )
+    conn.commit()
+
+    return {"hash": hash_data(data)}
+
+# 📊 dashboard
+@app.get("/dashboard/{api_key}")
+def dashboard(api_key: str):
+    cursor.execute(
+        "SELECT usage_count, btc_address FROM api_keys WHERE api_key=?",
+        (api_key,)
+    )
+    data = cursor.fetchone()
+
+    if not data:
+        return {"error": "invalid key"}
+
+    usage, address = data
+
+    cursor.execute(
+        "SELECT premium FROM users WHERE btc_address=?",
+        (address,)
+    )
+    user = cursor.fetchone()
+
+    return {
+        "usage": usage,
+        "premium": bool(user[0])
+    }
+
+# 📱 QR
+@app.get("/qr/{address}")
+def qr(address: str):
+    img = qrcode.make(f"bitcoin:{address}")
+    buf = BytesIO()
+    img.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="image/png")
+
+# 🌐 UI
+@app.get("/app", response_class=HTMLResponse)
+def ui():
+    return """
+    <html>
+    <body style="text-align:center;font-family:Arial;background:#111;color:white">
+
+    <h1>🚀 Bitcoin API</h1>
+    <p>Free: 5 requests | Premium: 10€</p>
+
+    <button onclick="pay()">Unlock Premium</button>
+
+    <p id="addr"></p>
+    <img id="qr" width="200"/>
+    <p id="key"></p>
+    <p id="status"></p>
+
+    <script>
+    let addr = null;
+
+    async function pay(){
+        let r = await fetch('/pay',{method:'POST'});
+        let d = await r.json();
+
+        addr = d.btc_address;
+
+        document.getElementById('addr').innerHTML = addr;
+        document.getElementById('qr').src = '/qr/'+addr;
+        document.getElementById('key').innerHTML = "API KEY: "+d.api_key;
+    }
+
+    async function check(){
+        if(!addr) return;
+
+        let r = await fetch('/check/'+addr);
+        let d = await r.json();
+
+        document.getElementById('status').innerHTML =
+            d.premium ? "✅ Premium" : "⏳ Waiting...";
+    }
+
+    setInterval(check,4000);
+    </script>
+
+    </body>
+    </html>
+    """
