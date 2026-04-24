@@ -5,7 +5,7 @@ import uuid
 app = FastAPI()
 
 # 👉 CONFIG BTC (MET TON ADRESSE ICI)
-BTC_ADDRESS = "bc1qxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # ⚠️ remplace par TON adresse
+BTC_ADDRESS = "1EqFMsnyCxg5aa5VBF1xJcWRDpSfcArHWE"  # ⚠️ remplace par TON adresse
 
 # 👉 Prix fixe en BTC
 PRICE_BTC = 0.0001
