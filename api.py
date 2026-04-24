@@ -47,7 +47,7 @@ def home():
     return {"message": "Bitcoin SaaS LIVE"}
 
 # 💳 paiement simulé (simple pour tester)
-@app.post("/pay")
+@app.get("/pay")
 def pay():
     address = "bc1qtestaddress123"  # FAKE pour test
 
