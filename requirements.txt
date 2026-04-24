@@ -1,5 +1,7 @@
 fastapi
 uvicorn
+qrcode
+pillow
 requests
 qrcode[pil]
 jinja2
