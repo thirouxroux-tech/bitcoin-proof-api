@@ -1,3 +1,4 @@
+print("VERSION TEST 123")
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 import hashlib, sqlite3, secrets, qrcode
