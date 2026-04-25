@@ -20,7 +20,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
-
 # ===== MODEL =====
 class Payment(Base):
     __tablename__ = "payments"
@@ -30,9 +29,7 @@ class Payment(Base):
     address = Column(String)
     paid = Column(Boolean, default=False)
 
-
 Base.metadata.create_all(bind=engine)
-
 
 # ===== ADDRESS =====
 def generate_address(index):
@@ -40,23 +37,19 @@ def generate_address(index):
     child = key.ChildKey(index)
     return child.Address()
 
-
 def check_address(address):
     try:
         url = f"https://blockstream.info/api/address/{address}"
         r = requests.get(url)
         data = r.json()
-
         return data["chain_stats"]["funded_txo_sum"] / 100_000_000
     except:
         return 0
 
-
 # ===== ROUTES =====
 @app.get("/")
 def home():
-    return {"status": "LIVE PRODUCTION"}
-
+    return {"status": "OK"}
 
 @app.get("/pay")
 def pay():
@@ -76,7 +69,6 @@ def pay():
         "api_key": api_key
     }
 
-
 @app.get("/check/{api_key}")
 def check(api_key: str):
     db = SessionLocal()
@@ -92,57 +84,49 @@ def check(api_key: str):
         payment.paid = True
         db.commit()
 
-    return {
-        "paid": payment.paid
-    }
+    return {"paid": payment.paid}
 
-
-# ===== UI =====
+# ===== APP =====
 @app.get("/app", response_class=HTMLResponse)
 def app_page():
     return f"""
     <html>
-    <body style="background:black;color:white;text-align:center;font-family:Arial;">
-        <h1>₿ Bitcoin API PRO</h1>
-
-        <h2>Premium: {PRICE_BTC} BTC</h2>
-
+    <body style="background:black;color:white;text-align:center;">
+        <h1>₿ Bitcoin API</h1>
         <button onclick="pay()">Unlock</button>
-
         <p id="result"></p>
 
         <script>
-        let currentKey = "";
+        let key = "";
 
         async function pay(){{
             let r = await fetch('/pay');
             let d = await r.json();
-
-            currentKey = d.api_key;
+            key = d.api_key;
 
             document.getElementById('result').innerHTML =
-                "<br><b>Send BTC to:</b><br>" + d.btc_address +
-                "<br><br><b>Amount:</b> " + d.amount_btc + " BTC" +
-                "<br><br><b>API Key:</b><br>" + d.api_key +
-                "<br><br><button onclick='check()'>Check Payment</button>";
+                "Address:<br>" + d.btc_address +
+                "<br>Amount: " + d.amount_btc + " BTC" +
+                "<br>Key: " + d.api_key +
+                "<br><button onclick='check()'>Check</button>";
         }}
 
         async function check(){{
-            let r = await fetch('/check/' + currentKey);
+            let r = await fetch('/check/' + key);
             let d = await r.json();
 
             if(d.paid){{
-                document.getElementById('result').innerHTML += "<br><br>✅ Premium ACTIVE";
+                alert("✅ PAID");
             }} else {{
-                document.getElementById('result').innerHTML += "<br><br>⏳ Waiting payment...";
+                alert("⏳ Waiting");
             }}
         }}
         </script>
     </body>
     </html>
     """
-from fastapi.responses import HTMLResponse
 
+# ===== DASHBOARD =====
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
     db = SessionLocal()
@@ -151,27 +135,16 @@ def dashboard():
     rows = ""
 
     for p in payments:
-        status = "✅ PAID" if p.paid else "⏳ WAITING"
+        status = "PAID" if p.paid else "WAITING"
 
-        rows += f"""
-        <tr>
-            <td>{p.api_key}</td>
-            <td>{p.address}</td>
-            <td>{status}</td>
-        </tr>
-        """
+        rows += f"<tr><td>{p.api_key}</td><td>{p.address}</td><td>{status}</td></tr>"
 
     return f"""
     <html>
-    <body style="background:black;color:white;font-family:Arial;">
-        <h1 style="text-align:center;">📊 Dashboard</h1>
-
-        <table border="1" style="margin:auto;color:white;">
-            <tr>
-                <th>API Key</th>
-                <th>Address</th>
-                <th>Status</th>
-            </tr>
+    <body style="background:black;color:white;">
+        <h1>Dashboard</h1>
+        <table border="1">
+            <tr><th>API Key</th><th>Address</th><th>Status</th></tr>
             {rows}
         </table>
     </body>
