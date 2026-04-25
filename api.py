@@ -12,16 +12,18 @@ payments = {}
 
 
 def check_payment_received():
-    try:
-        url = f"https://blockstream.info/api/address/{BTC_ADDRESS}"
-        r = requests.get(url)
-        data = r.json()
+    url = f"https://blockstream.info/api/address/{BTC_ADDRESS}/txs"
+    r = requests.get(url)
+    txs = r.json()
 
-        received_sats = data["chain_stats"]["funded_txo_sum"]
-        return received_sats / 100_000_000
-    except:
-        return 0
+    total = 0
 
+    for tx in txs:
+        for out in tx["vout"]:
+            if out["scriptpubkey_address"] == BTC_ADDRESS:
+                total += out["value"]
+
+    return total / 100_000_000
 
 @app.get("/")
 def home():
