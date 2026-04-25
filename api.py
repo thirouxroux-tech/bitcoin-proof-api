@@ -2,28 +2,36 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import uuid
 import requests
+import bip32utils
 
 app = FastAPI()
 
-BTC_ADDRESS = "1KLPFtzz5hkBeYpkYjSFUMiBx7yi9YTXy8"  # TON adresse
+XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
 PRICE_BTC = 0.0001
 
 payments = {}
+index_counter = 0
 
 
-def check_payment_received():
-    url = f"https://blockstream.info/api/address/{BTC_ADDRESS}/txs"
-    r = requests.get(url)
-    txs = r.json()
+# 🔑 générer adresse unique depuis xpub
+def generate_address(index):
+    key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
+    child = key.ChildKey(index)
+    return child.Address()
 
-    total = 0
 
-    for tx in txs:
-        for out in tx["vout"]:
-            if out["scriptpubkey_address"] == BTC_ADDRESS:
-                total += out["value"]
+# 🔍 vérifier paiement sur une adresse
+def check_address(address):
+    try:
+        url = f"https://blockstream.info/api/address/{address}"
+        r = requests.get(url)
+        data = r.json()
 
-    return total / 100_000_000
+        received = data["chain_stats"]["funded_txo_sum"]
+        return received / 100_000_000
+    except:
+        return 0
+
 
 @app.get("/")
 def home():
@@ -32,14 +40,21 @@ def home():
 
 @app.get("/pay")
 def pay():
+    global index_counter
+
     api_key = "sk_" + str(uuid.uuid4())[:12]
 
+    # 👉 nouvelle adresse unique
+    address = generate_address(index_counter)
+    index_counter += 1
+
     payments[api_key] = {
-        "paid": False
+        "paid": False,
+        "address": address
     }
 
     return {
-        "btc_address": BTC_ADDRESS,
+        "btc_address": address,
         "amount_btc": PRICE_BTC,
         "api_key": api_key
     }
@@ -50,7 +65,8 @@ def check(api_key: str):
     if api_key not in payments:
         return {"error": "not found"}
 
-    received = check_payment_received()
+    address = payments[api_key]["address"]
+    received = check_address(address)
 
     if received >= PRICE_BTC:
         payments[api_key]["paid"] = True
@@ -63,7 +79,7 @@ def app_page():
     return f"""
     <html>
     <body style="background:black;color:white;text-align:center;font-family:Arial;">
-        <h1>₿ Bitcoin API</h1>
+        <h1>₿ Bitcoin API PRO</h1>
 
         <h2>Premium: {PRICE_BTC} BTC</h2>
 
@@ -83,7 +99,7 @@ def app_page():
             document.getElementById('result').innerHTML =
                 "<br><b>Send BTC to:</b><br>" + d.btc_address +
                 "<br><br><b>Amount:</b> " + d.amount_btc + " BTC" +
-                "<br><br><b>Your API Key:</b><br>" + d.api_key +
+                "<br><br><b>API Key:</b><br>" + d.api_key +
                 "<br><br><button onclick='check()'>Check Payment</button>";
         }}
 
