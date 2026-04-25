@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 import requests
 import uuid
@@ -9,6 +9,9 @@ BTCPAY_URL = "https://mainnet.demo.btcpayserver.org"
 STORE_ID = "HC6dTjE8vWsp2FQG17KvdVeSdrHNRHsuqLiydZEVpEbV"
 API_KEY = "kkRE7L717d7URYhoGD1RDL00Z7vCEhChoYB71PM7lb7"
 
+# stockage simple
+payments = {}
+
 PRICE_EUR = 5
 
 
@@ -17,6 +20,7 @@ def home():
     return {"status": "OK"}
 
 
+# 🔥 créer facture
 @app.get("/pay")
 def pay():
     order_id = str(uuid.uuid4())
@@ -37,15 +41,44 @@ def pay():
     }
 
     r = requests.post(url, json=data, headers=headers)
-
     invoice = r.json()
+
+    # on garde en mémoire
+    payments[order_id] = {
+        "paid": False
+    }
 
     return {
         "checkout_url": invoice.get("checkoutLink"),
-        "invoice_id": invoice.get("id")
+        "order_id": order_id
     }
 
 
+# 🔥 webhook BTCPay
+@app.post("/webhook")
+async def webhook(req: Request):
+    data = await req.json()
+
+    event = data.get("type")
+    invoice = data.get("invoiceId")
+
+    if event == "InvoiceSettled":
+        # ici tu peux activer
+        print("PAIEMENT CONFIRMÉ :", invoice)
+
+    return {"status": "ok"}
+
+
+# 🔍 vérifier statut
+@app.get("/check/{order_id}")
+def check(order_id: str):
+    if order_id in payments:
+        return payments[order_id]
+
+    return {"error": "not found"}
+
+
+# 🌐 UI
 @app.get("/app", response_class=HTMLResponse)
 def app_page():
     return """
@@ -53,16 +86,18 @@ def app_page():
     <body style="background:black;color:white;text-align:center;font-family:Arial;">
         <h1>₿ Bitcoin API</h1>
 
-        <h2>Premium Access</h2>
-
         <button onclick="pay()">Pay with Bitcoin</button>
 
         <p id="result"></p>
 
         <script>
+        let currentOrder = "";
+
         async function pay(){
             let r = await fetch('/pay');
             let d = await r.json();
+
+            currentOrder = d.order_id;
 
             window.location.href = d.checkout_url;
         }
