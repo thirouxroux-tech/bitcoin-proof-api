@@ -1,19 +1,13 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-import requests
 import uuid
 
 app = FastAPI()
 
-# ===== CONFIG BTCPAY =====
-BTCPAY_URL = "https://mainnet.demo.btcpayserver.org"
-STORE_ID = "HC6dTjE8vWsp2FQG17KvdVeSdrHNRHsuqLiydZEVpEbV"
-API_KEY = "kkRE7L717d7URYhoGD1RDL00Z7vCEhChoYB71PM7lb7"
+BTC_ADDRESS = "1KLPFtzz5hkBeYpkYjSFUMiBx7yi9YTXy8"  # TON adresse
+PRICE_BTC = 0.0001
 
-# stockage simple
 payments = {}
-
-PRICE_EUR = 5
 
 
 @app.get("/")
@@ -21,77 +15,84 @@ def home():
     return {"status": "OK"}
 
 
-# ===== CREATE PAYMENT =====
 @app.get("/pay")
 def pay():
-    order_id = str(uuid.uuid4())
+    api_key = "sk_" + str(uuid.uuid4())[:12]
 
-    url = f"{BTCPAY_URL}/api/v1/stores/{STORE_ID}/invoices"
-
-    headers = {
-        "Authorization": f"token {API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "amount": PRICE_EUR,
-        "currency": "EUR",
-        "metadata": {
-            "orderId": order_id
-        }
-    }
-
-    r = requests.post(url, json=data, headers=headers)
-    invoice = r.json()
-
-    payments[order_id] = {
-        "paid": False,
-        "api_key": None
+    payments[api_key] = {
+        "paid": False
     }
 
     return {
-        "checkout_url": invoice.get("checkoutLink"),
-        "order_id": order_id
+        "btc_address": BTC_ADDRESS,
+        "amount_btc": PRICE_BTC,
+        "api_key": api_key
     }
 
 
-# ===== WEBHOOK =====
-@app.post("/webhook")
-async def webhook(req: Request):
-    data = await req.json()
+# 👉 simulate / validation paiement
+@app.get("/confirm/{api_key}")
+def confirm(api_key: str):
+    if api_key in payments:
+        payments[api_key]["paid"] = True
+        return {"status": "paid"}
 
-    event = data.get("type")
-
-    if event == "InvoiceSettled":
-        api_key = "sk_" + str(uuid.uuid4())[:12]
-
-        print("✅ PAIEMENT CONFIRMÉ")
-        print("🔑 API KEY:", api_key)
-
-    return {"status": "ok"}
+    return {"error": "invalid key"}
 
 
-# ===== UI =====
+@app.get("/check/{api_key}")
+def check(api_key: str):
+    if api_key in payments:
+        return payments[api_key]
+
+    return {"error": "not found"}
+
+
 @app.get("/app", response_class=HTMLResponse)
 def app_page():
-    return """
+    return f"""
     <html>
     <body style="background:black;color:white;text-align:center;font-family:Arial;">
         <h1>₿ Bitcoin API</h1>
 
-        <h2>Premium Access</h2>
+        <h2>Premium: {PRICE_BTC} BTC</h2>
 
-        <button onclick="pay()">Pay with Bitcoin</button>
+        <button onclick="pay()">Unlock</button>
 
         <p id="result"></p>
 
         <script>
-        async function pay(){
+        let currentKey = "";
+
+        async function pay(){{
             let r = await fetch('/pay');
             let d = await r.json();
 
-            window.location.href = d.checkout_url;
-        }
+            currentKey = d.api_key;
+
+            document.getElementById('result').innerHTML =
+                "<br><b>Send BTC to:</b><br>" + d.btc_address +
+                "<br><br><b>Amount:</b> " + d.amount_btc + " BTC" +
+                "<br><br><b>Your API Key:</b><br>" + d.api_key +
+                "<br><br><button onclick='confirm()'>I PAID</button>" +
+                "<br><br><button onclick='check()'>Check Status</button>";
+        }}
+
+        async function confirm(){{
+            await fetch('/confirm/' + currentKey);
+            alert("Payment marked as paid (test)");
+        }}
+
+        async function check(){{
+            let r = await fetch('/check/' + currentKey);
+            let d = await r.json();
+
+            if(d.paid){{
+                document.getElementById('result').innerHTML += "<br><br>✅ Premium ACTIVE";
+            }} else {{
+                document.getElementById('result').innerHTML += "<br><br>⏳ Waiting payment";
+            }}
+        }}
         </script>
     </body>
     </html>
