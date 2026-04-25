@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import uuid
+import requests
 
 app = FastAPI()
 
@@ -8,6 +9,18 @@ BTC_ADDRESS = "1KLPFtzz5hkBeYpkYjSFUMiBx7yi9YTXy8"  # TON adresse
 PRICE_BTC = 0.0001
 
 payments = {}
+
+
+def check_payment_received():
+    try:
+        url = f"https://blockstream.info/api/address/{BTC_ADDRESS}"
+        r = requests.get(url)
+        data = r.json()
+
+        received_sats = data["chain_stats"]["funded_txo_sum"]
+        return received_sats / 100_000_000
+    except:
+        return 0
 
 
 @app.get("/")
@@ -30,22 +43,17 @@ def pay():
     }
 
 
-# 👉 simulate / validation paiement
-@app.get("/confirm/{api_key}")
-def confirm(api_key: str):
-    if api_key in payments:
-        payments[api_key]["paid"] = True
-        return {"status": "paid"}
-
-    return {"error": "invalid key"}
-
-
 @app.get("/check/{api_key}")
 def check(api_key: str):
-    if api_key in payments:
-        return payments[api_key]
+    if api_key not in payments:
+        return {"error": "not found"}
 
-    return {"error": "not found"}
+    received = check_payment_received()
+
+    if received >= PRICE_BTC:
+        payments[api_key]["paid"] = True
+
+    return payments[api_key]
 
 
 @app.get("/app", response_class=HTMLResponse)
@@ -74,13 +82,7 @@ def app_page():
                 "<br><b>Send BTC to:</b><br>" + d.btc_address +
                 "<br><br><b>Amount:</b> " + d.amount_btc + " BTC" +
                 "<br><br><b>Your API Key:</b><br>" + d.api_key +
-                "<br><br><button onclick='confirm()'>I PAID</button>" +
-                "<br><br><button onclick='check()'>Check Status</button>";
-        }}
-
-        async function confirm(){{
-            await fetch('/confirm/' + currentKey);
-            alert("Payment marked as paid (test)");
+                "<br><br><button onclick='check()'>Check Payment</button>";
         }}
 
         async function check(){{
@@ -88,9 +90,9 @@ def app_page():
             let d = await r.json();
 
             if(d.paid){{
-                document.getElementById('result').innerHTML += "<br><br>✅ Premium ACTIVE";
+                document.getElementById('result').innerHTML += "<br><br>✅ Payment confirmed!";
             }} else {{
-                document.getElementById('result').innerHTML += "<br><br>⏳ Waiting payment";
+                document.getElementById('result').innerHTML += "<br><br>⏳ Waiting payment...";
             }}
         }}
         </script>
