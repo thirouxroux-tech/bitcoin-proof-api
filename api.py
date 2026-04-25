@@ -60,15 +60,15 @@ async def webhook(req: Request):
     data = await req.json()
 
     event = data.get("type")
-    invoice = data.get("invoiceId")
+    invoice_id = data.get("invoiceId")
 
     if event == "InvoiceSettled":
-        # ici tu peux activer
-        print("PAIEMENT CONFIRMÉ :", invoice)
+        api_key = "sk_" + str(uuid.uuid4())[:12]
+
+        print("✅ PAIEMENT CONFIRMÉ")
+        print("🔑 API KEY:", api_key)
 
     return {"status": "ok"}
-
-
 # 🔍 vérifier statut
 @app.get("/check/{order_id}")
 def check(order_id: str):
