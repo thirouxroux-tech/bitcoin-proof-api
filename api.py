@@ -3,24 +3,29 @@ from fastapi.responses import HTMLResponse
 import uuid
 import requests
 import bip32utils
+import os
+
 from sqlalchemy import create_engine, Column, String, Boolean, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 app = FastAPI()
 
+# ===== CONFIG =====
 XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
 PRICE_BTC = 0.0001
 
-# ===== DATABASE =====
-engine = create_engine("sqlite:///payments.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
+# ===== MODEL =====
 class Payment(Base):
     __tablename__ = "payments"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     api_key = Column(String, unique=True)
     address = Column(String)
     paid = Column(Boolean, default=False)
@@ -29,7 +34,7 @@ class Payment(Base):
 Base.metadata.create_all(bind=engine)
 
 
-# ===== ADDRESS GENERATION =====
+# ===== ADDRESS =====
 def generate_address(index):
     key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
     child = key.ChildKey(index)
@@ -50,7 +55,7 @@ def check_address(address):
 # ===== ROUTES =====
 @app.get("/")
 def home():
-    return {"status": "OK"}
+    return {"status": "LIVE PRODUCTION"}
 
 
 @app.get("/pay")
@@ -88,8 +93,7 @@ def check(api_key: str):
         db.commit()
 
     return {
-        "paid": payment.paid,
-        "address": payment.address
+        "paid": payment.paid
     }
 
 
@@ -128,7 +132,7 @@ def app_page():
             let d = await r.json();
 
             if(d.paid){{
-                document.getElementById('result').innerHTML += "<br><br>✅ Payment confirmed!";
+                document.getElementById('result').innerHTML += "<br><br>✅ Premium ACTIVE";
             }} else {{
                 document.getElementById('result').innerHTML += "<br><br>⏳ Waiting payment...";
             }}
