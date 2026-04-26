@@ -73,11 +73,11 @@ def pay():
     db.add(payment)
     db.commit()
 
-    return {
-        "btc_address": address,
-        "amount_btc": PRICE_BTC,
-        "api_key": api_key
-    }
+  return {
+    "btc_address": address,
+    "amount_btc": PRICE_BTC,
+    "order_id": api_key
+}
 
 @app.get("/check/{api_key}")
 def check(api_key: str):
@@ -94,7 +94,13 @@ def check(api_key: str):
         payment.paid = True
         db.commit()
 
-    return {"paid": payment.paid}
+    if payment.paid:
+    return {
+        "paid": True,
+        "api_key": payment.api_key
+    }
+
+return {"paid": False}
 
 # ===== APP =====
 @app.get("/app", response_class=HTMLResponse)
@@ -109,29 +115,35 @@ def app_page():
         <script>
         let key = "";
 
-        async function pay(){{
-            let r = await fetch('/pay');
-            let d = await r.json();
-            key = d.api_key;
+        <script>
+let currentKey = "";
 
-            document.getElementById('result').innerHTML =
-                "Address:<br>" + d.btc_address +
-                "<br>Amount: " + d.amount_btc + " BTC" +
-                "<br>Key: " + d.api_key +
-                "<br><button onclick='check()'>Check</button>";
-        }}
+async function pay(){
+    let r = await fetch('/pay');
+    let d = await r.json();
 
-        async function check(){{
-            let r = await fetch('/check/' + key);
-            let d = await r.json();
+    currentKey = d.order_id;
 
-            if(d.paid){{
-                alert("✅ PAID");
-            }} else {{
-                alert("⏳ Waiting");
-            }}
-        }}
-        </script>
+    document.getElementById('result').innerHTML =
+        "<br><b>Send BTC to:</b><br>" + d.btc_address +
+        "<br><br><b>Amount:</b> " + d.amount_btc + " BTC" +
+        "<br><br><button onclick='check()'>Check Payment</button>";
+}
+
+async function check(){
+    let r = await fetch('/check/' + currentKey);
+    let d = await r.json();
+
+    if(d.paid){
+        document.getElementById('result').innerHTML += 
+            "<br><br>✅ Payment confirmed!" +
+            "<br><br><b>Your API Key:</b><br>" + d.api_key;
+    } else {
+        document.getElementById('result').innerHTML += 
+            "<br><br>⏳ Waiting payment...";
+    }
+}
+</script>
     </body>
     </html>
     """
