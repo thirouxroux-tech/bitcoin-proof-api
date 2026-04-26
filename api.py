@@ -4,7 +4,9 @@ import uuid
 import requests
 import bip32utils
 import os
-
+import qrcode
+import base64
+from io import BytesIO
 from sqlalchemy import create_engine, Column, String, Boolean, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base
 from fastapi import Depends, HTTPException
@@ -12,8 +14,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 security = HTTPBasic()
 
-ADMIN_USER = "admin"
-ADMIN_PASS = "1234"
+ADMIN_USER = "ton_user"
+ADMIN_PASS = "mot_de_passe_fort"
 
 def check_auth(credentials: HTTPBasicCredentials = Depends(security)):
     if credentials.username != ADMIN_USER or credentials.password != ADMIN_PASS:
@@ -55,7 +57,25 @@ def check_address(address):
         return data["chain_stats"]["funded_txo_sum"] / 100_000_000
     except:
         return 0
+def check_address(address):
+    try:
+        url = f"https://blockstream.info/api/address/{address}"
+        r = requests.get(url)
+        data = r.json()
+        return data["chain_stats"]["funded_txo_sum"] / 100_000_000
+    except:
+        return 0
 
+
+# 👉 AJOUT ICI
+def generate_qr(address, amount):
+    uri = f"bitcoin:{address}?amount={amount}"
+
+    qr = qrcode.make(uri)
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+
+    return base64.b64encode(buffer.getvalue()).decode()
 # ===== ROUTES =====
 @app.get("/")
 def home():
@@ -69,6 +89,8 @@ def pay():
     address = generate_address(index)
     api_key = "sk_" + str(uuid.uuid4())[:12]
 
+    qr = generate_qr(address, PRICE_BTC)
+
     payment = Payment(api_key=api_key, address=address, paid=False)
     db.add(payment)
     db.commit()
@@ -76,7 +98,8 @@ def pay():
     return {
         "btc_address": address,
         "amount_btc": PRICE_BTC,
-        "order_id": api_key
+        "order_id": api_key,
+        "qr": qr
     }
 
 @app.get("/check/{order_id}")

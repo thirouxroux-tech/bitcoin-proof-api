@@ -4,3 +4,4 @@ requests
 bip32utils
 sqlalchemy
 psycopg2-binary
+qrcode[pil]
