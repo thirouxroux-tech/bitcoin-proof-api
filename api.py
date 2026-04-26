@@ -161,31 +161,3 @@ def dashboard():
     </body>
     </html>
     """
-    </body>
-    </html>
-    """
-
-# ===== DASHBOARD =====
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(auth: HTTPBasicCredentials = Depends(check_auth)):
-    db = SessionLocal()
-    payments = db.query(Payment).all()
-
-    rows = ""
-
-    for p in payments:
-        status = "PAID" if p.paid else "WAITING"
-
-        rows += f"<tr><td>{p.api_key}</td><td>{p.address}</td><td>{status}</td></tr>"
-
-    return f"""
-    <html>
-    <body style="background:black;color:white;">
-        <h1>Dashboard</h1>
-        <table border="1">
-            <tr><th>API Key</th><th>Address</th><th>Status</th></tr>
-            {rows}
-        </table>
-    </body>
-    </html>
-    """
