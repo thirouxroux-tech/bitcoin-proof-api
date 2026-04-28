@@ -131,10 +131,22 @@ def app_page():
     return """
     <html>
     <body style="background:black;color:white;text-align:center;font-family:Arial;">
+        
         <h1>₿ Bitcoin API</h1>
-        <h2>Premium Access</h2>
 
-        <button onclick="pay()">Unlock</button>
+        <h2>Access Premium</h2>
+
+        <p>✔ Instant API Key</p>
+        <p>✔ Bitcoin Only</p>
+        <p>✔ No signup</p>
+
+        <h2>Price: 0.0001 BTC</h2>
+
+        <button onclick="pay()" style="padding:15px;font-size:18px;">
+        🚀 Unlock Now
+        </button>
+
+        <p>⚠ Limited access</p>
 
         <p id="result"></p>
 
@@ -148,7 +160,7 @@ def app_page():
             order = d.order_id;
 
             document.getElementById('result').innerHTML =
-                "Send BTC to:<br>" + d.btc_address +
+                "<br>Send BTC to:<br>" + d.btc_address +
                 "<br><br>Amount: " + d.amount_btc + " BTC" +
                 "<br><br><img width='200' src='data:image/png;base64," + d.qr + "'>" +
                 "<br><br><button onclick='check()'>Check Payment</button>";
@@ -168,6 +180,7 @@ def app_page():
             }
         }
         </script>
+
     </body>
     </html>
     """
