@@ -11,18 +11,23 @@ from sqlalchemy import create_engine, Column, String, Boolean, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import secrets
 
 security = HTTPBasic()
 
-ADMIN_USER = "ton_user"
-ADMIN_PASS = "mot_de_passe_fort"
+ADMIN_USER = "admin"
+ADMIN_PASS = "1234"
 
 def check_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if credentials.username != ADMIN_USER or credentials.password != ADMIN_PASS:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-app = FastAPI()
+    correct_user = secrets.compare_digest(credentials.username, ADMIN_USER)
+    correct_pass = secrets.compare_digest(credentials.password, ADMIN_PASS)
 
-# ===== CONFIG =====
+    if not (correct_user and correct_pass):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )# ===== CONFIG =====
 XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
 PRICE_BTC = 0.0001
 
