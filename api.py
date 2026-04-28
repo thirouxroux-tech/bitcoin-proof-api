@@ -1,22 +1,32 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+
 import uuid
 import requests
 import bip32utils
 import os
 import qrcode
 import base64
+import secrets
 from io import BytesIO
+
 from sqlalchemy import create_engine, Column, String, Boolean, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-import secrets
 
-security = HTTPBasic()
+app = FastAPI()
+
+# ===== CONFIG =====
+XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
+PRICE_BTC = 0.0001
 
 ADMIN_USER = "admin"
 ADMIN_PASS = "1234"
+
+DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///test.db"
+
+# ===== SECURITY =====
+security = HTTPBasic()
 
 def check_auth(credentials: HTTPBasicCredentials = Depends(security)):
     correct_user = secrets.compare_digest(credentials.username, ADMIN_USER)
@@ -27,17 +37,13 @@ def check_auth(credentials: HTTPBasicCredentials = Depends(security)):
             status_code=401,
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
-        )# ===== CONFIG =====
-XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
-PRICE_BTC = 0.0001
+        )
 
-DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///test.db"
-
+# ===== DATABASE =====
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
-# ===== MODEL =====
 class Payment(Base):
     __tablename__ = "payments"
 
@@ -48,7 +54,7 @@ class Payment(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# ===== ADDRESS =====
+# ===== BTC FUNCTIONS =====
 def generate_address(index):
     key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
     child = key.ChildKey(index)
@@ -62,17 +68,7 @@ def check_address(address):
         return data["chain_stats"]["funded_txo_sum"] / 100_000_000
     except:
         return 0
-def check_address(address):
-    try:
-        url = f"https://blockstream.info/api/address/{address}"
-        r = requests.get(url)
-        data = r.json()
-        return data["chain_stats"]["funded_txo_sum"] / 100_000_000
-    except:
-        return 0
 
-
-# 👉 AJOUT ICI
 def generate_qr(address, amount):
     uri = f"bitcoin:{address}?amount={amount}"
 
@@ -81,6 +77,7 @@ def generate_qr(address, amount):
     qr.save(buffer, format="PNG")
 
     return base64.b64encode(buffer.getvalue()).decode()
+
 # ===== ROUTES =====
 @app.get("/")
 def home():
@@ -93,7 +90,6 @@ def pay():
     index = db.query(Payment).count()
     address = generate_address(index)
     api_key = "sk_" + str(uuid.uuid4())[:12]
-
     qr = generate_qr(address, PRICE_BTC)
 
     payment = Payment(api_key=api_key, address=address, paid=False)
@@ -130,14 +126,13 @@ def check(order_id: str):
 
     return {"paid": False}
 
-# ===== UI =====
 @app.get("/app", response_class=HTMLResponse)
 def app_page():
-    return f"""
+    return """
     <html>
-    <body style="background:black;color:white;text-align:center;">
+    <body style="background:black;color:white;text-align:center;font-family:Arial;">
         <h1>₿ Bitcoin API</h1>
-        <h2>{PRICE_BTC} BTC</h2>
+        <h2>Premium Access</h2>
 
         <button onclick="pay()">Unlock</button>
 
@@ -146,7 +141,7 @@ def app_page():
         <script>
         let order = "";
 
-        async function pay(){{
+        async function pay(){
             let r = await fetch('/pay');
             let d = await r.json();
 
@@ -155,28 +150,28 @@ def app_page():
             document.getElementById('result').innerHTML =
                 "Send BTC to:<br>" + d.btc_address +
                 "<br><br>Amount: " + d.amount_btc + " BTC" +
+                "<br><br><img width='200' src='data:image/png;base64," + d.qr + "'>" +
                 "<br><br><button onclick='check()'>Check Payment</button>";
-        }}
+        }
 
-        async function check(){{
+        async function check(){
             let r = await fetch('/check/' + order);
             let d = await r.json();
 
-            if(d.paid){{
+            if(d.paid){
                 document.getElementById('result').innerHTML +=
                     "<br><br>✅ Payment confirmed!" +
                     "<br><br>Your API Key:<br>" + d.api_key;
-            }} else {{
+            } else {
                 document.getElementById('result').innerHTML +=
                     "<br><br>⏳ Waiting payment...";
-            }}
-        }}
+            }
+        }
         </script>
     </body>
     </html>
     """
 
-# ===== DASHBOARD =====
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(auth: HTTPBasicCredentials = Depends(check_auth)):
     db = SessionLocal()
@@ -190,10 +185,14 @@ def dashboard(auth: HTTPBasicCredentials = Depends(check_auth)):
 
     return f"""
     <html>
-    <body style="background:black;color:white;">
+    <body style="background:black;color:white;font-family:Arial;">
         <h1>Dashboard</h1>
-        <table border="1">
-            <tr><th>API Key</th><th>Address</th><th>Status</th></tr>
+        <table border="1" style="width:100%;">
+            <tr>
+                <th>API Key</th>
+                <th>Address</th>
+                <th>Status</th>
+            </tr>
             {rows}
         </table>
     </body>
