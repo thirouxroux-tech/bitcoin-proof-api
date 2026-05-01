@@ -1,58 +1,19 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-
 import uuid
 import requests
 import bip32utils
-import os
 import qrcode
 import base64
-import secrets
 from io import BytesIO
-
-from sqlalchemy import create_engine, Column, String, Boolean, Integer
-from sqlalchemy.orm import sessionmaker, declarative_base
 
 app = FastAPI()
 
 # ===== CONFIG =====
 XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
-PRICE_BTC = 0.0001
+PRICE_DEFAULT = 0.0001
 
-ADMIN_USER = "admin"
-ADMIN_PASS = "1234"
-
-DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///test.db"
-
-# ===== SECURITY =====
-security = HTTPBasic()
-
-def check_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_user = secrets.compare_digest(credentials.username, ADMIN_USER)
-    correct_pass = secrets.compare_digest(credentials.password, ADMIN_PASS)
-
-    if not (correct_user and correct_pass):
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-
-# ===== DATABASE =====
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
-Base = declarative_base()
-
-class Payment(Base):
-    __tablename__ = "payments"
-
-    id = Column(Integer, primary_key=True)
-    api_key = Column(String, unique=True)
-    address = Column(String)
-    paid = Column(Boolean, default=False)
-
-Base.metadata.create_all(bind=engine)
+payments = {}
 
 # ===== BTC =====
 def generate_address(index):
@@ -76,124 +37,37 @@ def generate_qr(address, amount):
     qr.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode()
 
-# ===== ROUTES =====
-@app.get("/")
+# ===== HOME =====
+@app.get("/", response_class=HTMLResponse)
 def home():
-    return {"status": "OK"}
-
-@app.get("/pay")
-def pay():
-    db = SessionLocal()
-
-    index = db.query(Payment).count()
-    address = generate_address(index)
-    api_key = "sk_" + str(uuid.uuid4())[:12]
-    qr = generate_qr(address, PRICE_BTC)
-
-    payment = Payment(api_key=api_key, address=address, paid=False)
-    db.add(payment)
-    db.commit()
-
-    return {
-        "btc_address": address,
-        "amount_btc": PRICE_BTC,
-        "order_id": api_key,
-        "qr": qr
-    }
-
-@app.get("/check/{order_id}")
-def check(order_id: str):
-    db = SessionLocal()
-
-    payment = db.query(Payment).filter_by(api_key=order_id).first()
-
-    if not payment:
-        return {"error": "not found"}
-
-    received = check_address(payment.address)
-
-    if received >= PRICE_BTC:
-        payment.paid = True
-        db.commit()
-
-    if payment.paid:
-        return {
-            "paid": True,
-            "api_key": payment.api_key
-        }
-
-    return {"paid": False}
-
-# ===== API MONETISÉE =====
-@app.get("/api/check-payment")
-def check_payment_api(api_key: str, address: str):
-    db = SessionLocal()
-
-    payment = db.query(Payment).filter_by(api_key=api_key).first()
-
-    if not payment or not payment.paid:
-        return {"error": "unauthorized"}
-
-    amount = check_address(address)
-
-    return {
-        "address": address,
-        "received_btc": amount
-    }
-
-# ===== PAGE VENTE =====
-@app.get("/app", response_class=HTMLResponse)
-def app_page():
     return """
     <html>
     <body style="background:black;color:white;text-align:center;font-family:Arial;">
 
-        <h1>₿ Automate Bitcoin Payments</h1>
+        <h1>₿ Bitcoin Payment Link</h1>
 
-        <p>Receive BTC and unlock access automatically.</p>
-        <p>No signup. No KYC. No Stripe.</p>
-        <p>Perfect for APIs, bots and digital products.</p>
+        <p>Create a Bitcoin payment link in seconds</p>
+        <p>No signup. No KYC.</p>
 
-        <h2>Price: 0.0001 BTC</h2>
+        <input id="amount" placeholder="Amount in BTC (ex: 0.0001)" style="padding:10px;">
+        <br><br>
 
-        <button onclick="pay()" style="padding:15px;font-size:18px;">
-        🚀 Start accepting Bitcoin
+        <button onclick="create()" style="padding:15px;font-size:18px;">
+        🚀 Generate Payment Link
         </button>
-
-        <p>⚡ Works in 2 minutes</p>
-        <p>You get an API key after payment</p>
 
         <p id="result"></p>
 
         <script>
-        let order = "";
+        async function create(){
+            let amount = document.getElementById('amount').value || "0.0001";
 
-        async function pay(){
-            let r = await fetch('/pay');
+            let r = await fetch('/create?amount=' + amount);
             let d = await r.json();
-
-            order = d.order_id;
 
             document.getElementById('result').innerHTML =
-                "<br>Send BTC to:<br>" + d.btc_address +
-                "<br><br>Amount: " + d.amount_btc + " BTC" +
-                "<br><br><img width='200' src='data:image/png;base64," + d.qr + "'>" +
-                "<br><br><button onclick='check()'>Check Payment</button>";
-        }
-
-        async function check(){
-            let r = await fetch('/check/' + order);
-            let d = await r.json();
-
-            if(d.paid){
-                document.getElementById('result').innerHTML +=
-                    "<br><br>✅ Payment confirmed!" +
-                    "<br><br>Your API Key:<br>" + d.api_key +
-                    "<br><br>Example:<br>/api/check-payment?api_key=" + d.api_key + "&address=YOUR_BTC_ADDRESS";
-            } else {
-                document.getElementById('result').innerHTML +=
-                    "<br><br>⏳ Waiting payment...";
-            }
+                "<br>Your link:<br><a href='/pay/" + d.id + "' target='_blank'>"
+                + window.location.origin + "/pay/" + d.id + "</a>";
         }
         </script>
 
@@ -201,30 +75,77 @@ def app_page():
     </html>
     """
 
-# ===== DASHBOARD =====
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(auth: HTTPBasicCredentials = Depends(check_auth)):
-    db = SessionLocal()
-    payments = db.query(Payment).all()
+# ===== CREATE LINK =====
+@app.get("/create")
+def create(amount: float = PRICE_DEFAULT):
+    index = len(payments)
+    address = generate_address(index)
+    payment_id = str(uuid.uuid4())[:8]
 
-    rows = ""
+    payments[payment_id] = {
+        "address": address,
+        "amount": amount,
+        "paid": False
+    }
 
-    for p in payments:
-        status = "PAID" if p.paid else "WAITING"
-        rows += f"<tr><td>{p.api_key}</td><td>{p.address}</td><td>{status}</td></tr>"
+    return {"id": payment_id}
+
+# ===== PAYMENT PAGE =====
+@app.get("/pay/{payment_id}", response_class=HTMLResponse)
+def pay_page(payment_id: str):
+    if payment_id not in payments:
+        return "Not found"
+
+    p = payments[payment_id]
+    qr = generate_qr(p["address"], p["amount"])
 
     return f"""
     <html>
-    <body style="background:black;color:white;font-family:Arial;">
-        <h1>Dashboard</h1>
-        <table border="1" style="width:100%;">
-            <tr>
-                <th>API Key</th>
-                <th>Address</th>
-                <th>Status</th>
-            </tr>
-            {rows}
-        </table>
+    <body style="background:black;color:white;text-align:center;font-family:Arial;">
+
+        <h1>₿ Payment</h1>
+
+        <p>Send BTC to:</p>
+        <p>{p["address"]}</p>
+
+        <h2>{p["amount"]} BTC</h2>
+
+        <img width="200" src="data:image/png;base64,{qr}">
+
+        <br><br>
+
+        <button onclick="check()">Check Payment</button>
+
+        <p id="status"></p>
+
+        <script>
+        async function check(){{
+            let r = await fetch('/check/{payment_id}');
+            let d = await r.json();
+
+            if(d.paid){{
+                document.getElementById('status').innerHTML = "✅ Payment received!";
+            }} else {{
+                document.getElementById('status').innerHTML = "⏳ Waiting payment...";
+            }}
+        }}
+        </script>
+
     </body>
     </html>
     """
+
+# ===== CHECK =====
+@app.get("/check/{payment_id}")
+def check(payment_id: str):
+    if payment_id not in payments:
+        return {"error": "not found"}
+
+    p = payments[payment_id]
+
+    received = check_address(p["address"])
+
+    if received >= p["amount"]:
+        p["paid"] = True
+
+    return {"paid": p["paid"]}
