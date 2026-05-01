@@ -54,7 +54,7 @@ class Payment(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# ===== BTC FUNCTIONS =====
+# ===== BTC =====
 def generate_address(index):
     key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
     child = key.ChildKey(index)
@@ -71,11 +71,9 @@ def check_address(address):
 
 def generate_qr(address, amount):
     uri = f"bitcoin:{address}?amount={amount}"
-
     qr = qrcode.make(uri)
     buffer = BytesIO()
     qr.save(buffer, format="PNG")
-
     return base64.b64encode(buffer.getvalue()).decode()
 
 # ===== ROUTES =====
@@ -126,27 +124,44 @@ def check(order_id: str):
 
     return {"paid": False}
 
+# ===== API MONETISÉE =====
+@app.get("/api/check-payment")
+def check_payment_api(api_key: str, address: str):
+    db = SessionLocal()
+
+    payment = db.query(Payment).filter_by(api_key=api_key).first()
+
+    if not payment or not payment.paid:
+        return {"error": "unauthorized"}
+
+    amount = check_address(address)
+
+    return {
+        "address": address,
+        "received_btc": amount
+    }
+
+# ===== PAGE VENTE =====
 @app.get("/app", response_class=HTMLResponse)
 def app_page():
     return """
     <html>
     <body style="background:black;color:white;text-align:center;font-family:Arial;">
-        
-        <h1>₿ Bitcoin API</h1>
 
-        <h2>Access Premium</h2>
+        <h1>₿ Automate Bitcoin Payments</h1>
 
-        <p>✔ Instant API Key</p>
-        <p>✔ Bitcoin Only</p>
-        <p>✔ No signup</p>
+        <p>Receive BTC and unlock access automatically.</p>
+        <p>No signup. No KYC. No Stripe.</p>
+        <p>Perfect for APIs, bots and digital products.</p>
 
         <h2>Price: 0.0001 BTC</h2>
 
         <button onclick="pay()" style="padding:15px;font-size:18px;">
-        🚀 Unlock Now
+        🚀 Start accepting Bitcoin
         </button>
 
-        <p>⚠ Limited access</p>
+        <p>⚡ Works in 2 minutes</p>
+        <p>You get an API key after payment</p>
 
         <p id="result"></p>
 
@@ -173,7 +188,8 @@ def app_page():
             if(d.paid){
                 document.getElementById('result').innerHTML +=
                     "<br><br>✅ Payment confirmed!" +
-                    "<br><br>Your API Key:<br>" + d.api_key;
+                    "<br><br>Your API Key:<br>" + d.api_key +
+                    "<br><br>Example:<br>/api/check-payment?api_key=" + d.api_key + "&address=YOUR_BTC_ADDRESS";
             } else {
                 document.getElementById('result').innerHTML +=
                     "<br><br>⏳ Waiting payment...";
@@ -185,6 +201,7 @@ def app_page():
     </html>
     """
 
+# ===== DASHBOARD =====
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(auth: HTTPBasicCredentials = Depends(check_auth)):
     db = SessionLocal()
