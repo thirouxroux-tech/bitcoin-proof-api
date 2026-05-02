@@ -23,7 +23,28 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 FILES_DB = {}
+# ==================================================
+# CHECK BTC PAYMENT
+# ==================================================
 
+def check_payment(address, expected_amount):
+
+    try:
+
+        url = f"https://blockstream.info/api/address/{address}"
+
+        data = requests.get(url).json()
+
+        received = (
+            data["chain_stats"]["funded_txo_sum"]
+            / 100_000_000
+        )
+
+        return received >= float(expected_amount)
+
+    except:
+
+        return False
 # ==================================================
 # BTC ADDRESS
 # ==================================================
@@ -281,8 +302,104 @@ def pay(file_id: str):
         {data["address"]}
         </p>
 
+        <br><br>
+
+        <button
+        onclick="checkPayment()"
+        style="
+            background:#f7931a;
+            color:black;
+            border:none;
+            padding:16px 24px;
+            border-radius:12px;
+            font-size:18px;
+            font-weight:bold;
+            cursor:pointer;
+        "
+        >
+        Check Payment
+        </button>
+
+        <div id="status"></div>
+
+        <script>
+
+        async function checkPayment(){{
+
+            let r = await fetch('/check/{file_id}')
+
+            let d = await r.json()
+
+            if(d.paid){{
+                document.getElementById('status').innerHTML = `
+                    <br><br>
+
+                    <a
+                    href="/download/{file_id}"
+                    style="
+                        color:#f7931a;
+                        font-size:24px;
+                    "
+                    >
+                    Download File
+                    </a>
+                `
+            }}
+
+            else {{
+
+                document.getElementById('status').innerHTML =
+                "<br><br>⏳ Waiting payment..."
+
+            }}
+
+        }}
+
+        </script>
+
     </body>
 
     </html>
 
     """)
+# ==================================================
+# CHECK ROUTE
+# ==================================================
+
+@app.get("/check/{file_id}")
+def check(file_id: str):
+
+    if file_id not in FILES_DB:
+        return {"paid": False}
+
+    data = FILES_DB[file_id]
+
+    paid = check_payment(
+        data["address"],
+        data["price"]
+    )
+
+    return {
+        "paid": paid
+    }
+
+# ==================================================
+# DOWNLOAD FILE
+# ==================================================
+
+@app.get("/download/{file_id}")
+def download(file_id: str):
+
+    if file_id not in FILES_DB:
+        return {"error":"not found"}
+
+    data = FILES_DB[file_id]
+
+    path = os.path.join(
+        UPLOAD_DIR,
+        data["filename"]
+    )
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(path)
