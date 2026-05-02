@@ -6,3 +6,6 @@ qrcode[pil]
 sqlalchemy
 python-multipart
 jinja2
+requests
+bip32utils
+qrcode[pil]

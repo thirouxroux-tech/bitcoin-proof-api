@@ -1,15 +1,56 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
+
 import os
 import uuid
+import requests
+import bip32utils
+import qrcode
+import base64
+
+from io import BytesIO
 
 app = FastAPI()
+
+# ==================================================
+# CONFIG
+# ==================================================
+
+XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
 
 UPLOAD_DIR = "uploads"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 FILES_DB = {}
+
+# ==================================================
+# BTC ADDRESS
+# ==================================================
+
+def generate_address(index):
+
+    key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
+
+    return key.ChildKey(index).Address()
+
+# ==================================================
+# QR CODE
+# ==================================================
+
+def generate_qr(address, amount):
+
+    uri = f"bitcoin:{address}?amount={amount}"
+
+    qr = qrcode.make(uri)
+
+    buffer = BytesIO()
+
+    qr.save(buffer, format="PNG")
+
+    return base64.b64encode(
+        buffer.getvalue()
+    ).decode()
 
 # ==================================================
 # HOME
@@ -148,9 +189,14 @@ async def create(
     with open(filepath, "wb") as f:
         f.write(await file.read())
 
+    address = generate_address(
+        len(FILES_DB)
+    )
+
     FILES_DB[file_id] = {
         "filename": filename,
-        "price": price
+        "price": price,
+        "address": address
     }
 
     return HTMLResponse(f"""
@@ -199,6 +245,11 @@ def pay(file_id: str):
 
     data = FILES_DB[file_id]
 
+    qr = generate_qr(
+        data["address"],
+        data["price"]
+    )
+
     return HTMLResponse(f"""
 
     <html>
@@ -208,28 +259,27 @@ def pay(file_id: str):
         color:white;
         font-family:Arial;
         text-align:center;
-        padding-top:100px;
+        padding-top:60px;
     ">
 
-        <h1>🔒 Locked File</h1>
-
-        <p>
-        Price:
-        </p>
+        <h1>⚡ Bitcoin Payment</h1>
 
         <h2>{data["price"]} BTC</h2>
 
-        <button style="
-            background:#f7931a;
-            color:black;
-            border:none;
-            padding:16px 24px;
-            border-radius:12px;
-            font-size:18px;
-            font-weight:bold;
+        <img
+        width="250"
+        src="data:image/png;base64,{qr}"
+        >
+
+        <p style="
+            width:80%;
+            margin:auto;
+            margin-top:30px;
+            color:#999;
+            word-break:break-all;
         ">
-        Bitcoin Payment Coming Soon
-        </button>
+        {data["address"]}
+        </p>
 
     </body>
 
