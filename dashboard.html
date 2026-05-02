@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>LightningDrop</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:'Inter',sans-serif;
+    background:#0f0f0f;
+    color:white;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:20px;
+}
+
+.container{
+    width:100%;
+    max-width:520px;
+}
+
+.card{
+    background:#171717;
+    border:1px solid #2a2a2a;
+    border-radius:24px;
+    padding:40px;
+    box-shadow:0 10px 40px rgba(0,0,0,.4);
+}
+
+.logo{
+    font-size:42px;
+    margin-bottom:20px;
+}
+
+h1{
+    font-size:38px;
+    line-height:1.1;
+    margin-bottom:15px;
+}
+
+.subtitle{
+    color:#a1a1aa;
+    font-size:17px;
+    line-height:1.5;
+    margin-bottom:35px;
+}
+
+.upload-box{
+    border:2px dashed #3f3f46;
+    border-radius:18px;
+    padding:40px 20px;
+    text-align:center;
+    transition:.2s;
+    margin-bottom:25px;
+    cursor:pointer;
+}
+
+.upload-box:hover{
+    border-color:#f7931a;
+    background:#1b1b1b;
+}
+
+.upload-box input{
+    display:none;
+}
+
+.upload-icon{
+    font-size:42px;
+    margin-bottom:10px;
+}
+
+.upload-text{
+    font-size:16px;
+    color:#d4d4d8;
+}
+
+input[type="text"]{
+    width:100%;
+    background:#111;
+    border:1px solid #2f2f2f;
+    border-radius:14px;
+    padding:16px;
+    color:white;
+    font-size:16px;
+    margin-bottom:20px;
+}
+
+input[type="text"]:focus{
+    outline:none;
+    border-color:#f7931a;
+}
+
+button{
+    width:100%;
+    border:none;
+    border-radius:16px;
+    padding:18px;
+    background:#f7931a;
+    color:black;
+    font-size:17px;
+    font-weight:700;
+    cursor:pointer;
+    transition:.2s;
+}
+
+button:hover{
+    transform:translateY(-2px);
+    opacity:.95;
+}
+
+.features{
+    margin-top:30px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
+
+.feature{
+    color:#a1a1aa;
+    font-size:14px;
+}
+
+.footer{
+    text-align:center;
+    margin-top:20px;
+    color:#71717a;
+    font-size:13px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<div class="logo">⚡</div>
+
+<h1>Sell digital files with Bitcoin</h1>
+
+<p class="subtitle">
+Create a secure paywall in seconds.
+No signup. No KYC.
+Instant Bitcoin payments.
+</p>
+
+<form action="/create" method="post" enctype="multipart/form-data">
+
+<label class="upload-box">
+
+<div class="upload-icon">📁</div>
+
+<div class="upload-text">
+Click to upload your file
+</div>
+
+<input type="file" name="file" required>
+
+</label>
+
+<input
+type="text"
+name="price"
+placeholder="Price in BTC (ex: 0.0001)"
+required
+>
+
+<button type="submit">
+🚀 Create Paywall
+</button>
+
+</form>
+
+<div class="features">
+
+<div class="feature">
+✅ Sell PDFs, ZIPs, ebooks, private files
+</div>
+
+<div class="feature">
+✅ Bitcoin payments without signup
+</div>
+
+<div class="feature">
+✅ Instant file access after payment
+</div>
+
+</div>
+
+</div>
+
+<div class="footer">
+LightningDrop © 2026
+</div>
+
+</div>
+
+</body>
+</html>
