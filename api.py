@@ -1,15 +1,5 @@
-from sqlalchemy import (
-    create_engine,
-    Column,
-    String
-)
-
-from sqlalchemy.orm import (
-    declarative_base,
-    sessionmaker
-)
 from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 
 import os
 import uuid
@@ -20,14 +10,43 @@ import base64
 
 from io import BytesIO
 
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String
+)
+
+from sqlalchemy.orm import (
+    declarative_base,
+    sessionmaker
+)
+
+# ==================================================
+# FASTAPI
+# ==================================================
+
 app = FastAPI()
+
+# ==================================================
+# CONFIG
+# ==================================================
+
+XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
+
+UPLOAD_DIR = "uploads"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 # ==================================================
 # DATABASE
 # ==================================================
 
 DATABASE_URL = "sqlite:///paywall.db"
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False}
+)
 
 SessionLocal = sessionmaker(bind=engine)
 
@@ -46,39 +65,7 @@ class FileData(Base):
     address = Column(String)
 
 Base.metadata.create_all(bind=engine)
-# ==================================================
-# CONFIG
-# ==================================================
 
-XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
-
-UPLOAD_DIR = "uploads"
-
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-
-# ==================================================
-# CHECK BTC PAYMENT
-# ==================================================
-
-def check_payment(address, expected_amount):
-
-    try:
-
-        url = f"https://blockstream.info/api/address/{address}"
-
-        data = requests.get(url).json()
-
-        received = (
-            data["chain_stats"]["funded_txo_sum"]
-            / 100_000_000
-        )
-
-        return received >= float(expected_amount)
-
-    except:
-
-        return False
 # ==================================================
 # BTC ADDRESS
 # ==================================================
@@ -106,6 +93,29 @@ def generate_qr(address, amount):
     return base64.b64encode(
         buffer.getvalue()
     ).decode()
+
+# ==================================================
+# CHECK BTC PAYMENT
+# ==================================================
+
+def check_payment(address, expected_amount):
+
+    try:
+
+        url = f"https://blockstream.info/api/address/{address}"
+
+        data = requests.get(url).json()
+
+        received = (
+            data["chain_stats"]["funded_txo_sum"]
+            / 100_000_000
+        )
+
+        return received >= float(expected_amount)
+
+    except:
+
+        return False
 
 # ==================================================
 # HOME
@@ -232,6 +242,8 @@ async def create(
     file: UploadFile = File(...)
 ):
 
+    db = SessionLocal()
+
     file_id = str(uuid.uuid4())[:8]
 
     filename = f"{file_id}_{file.filename}"
@@ -245,23 +257,23 @@ async def create(
         f.write(await file.read())
 
     address = generate_address(
-        len(FILES_DB)
+        db.query(FileData).count()
     )
 
-  new_file = FileData(
+    new_file = FileData(
 
-    id=file_id,
+        id=file_id,
 
-    filename=filename,
+        filename=filename,
 
-    price=price,
+        price=price,
 
-    address=address
-)
+        address=address
+    )
 
-db.add(new_file)
+    db.add(new_file)
 
-db.commit()
+    db.commit()
 
     return HTMLResponse(f"""
 
@@ -290,7 +302,7 @@ db.commit()
         >
         /pay/{file_id}
         </a>
-db = SessionLocal()
+
     </body>
 
     </html>
@@ -304,16 +316,20 @@ db = SessionLocal()
 @app.get("/pay/{file_id}", response_class=HTMLResponse)
 def pay(file_id: str):
 
-    if file_id not in FILES_DB:
+    db = SessionLocal()
+
+    data = db.query(FileData).filter_by(
+        id=file_id
+    ).first()
+
+    if not data:
         return HTMLResponse("Not found")
 
-    data = FILES_DB[file_id]
-
     qr = generate_qr(
-        data["address"],
-        data["price"]
+        data.address,
+        data.price
     )
-db = SessionLocal()
+
     return HTMLResponse(f"""
 
     <html>
@@ -328,7 +344,7 @@ db = SessionLocal()
 
         <h1>⚡ Bitcoin Payment</h1>
 
-        <h2>{data["price"]} BTC</h2>
+        <h2>{data.price} BTC</h2>
 
         <img
         width="250"
@@ -342,7 +358,7 @@ db = SessionLocal()
             color:#999;
             word-break:break-all;
         ">
-        {data["address"]}
+        {data.address}
         </p>
 
         <br><br>
@@ -405,23 +421,26 @@ db = SessionLocal()
     </html>
 
     """)
+
 # ==================================================
-# CHECK ROUTE
+# CHECK PAYMENT
 # ==================================================
 
 @app.get("/check/{file_id}")
 def check(file_id: str):
 
-    data = db.query(FileData).filter_by(id=file_id).first()
+    db = SessionLocal()
 
-if not data:
+    data = db.query(FileData).filter_by(
+        id=file_id
+    ).first()
+
+    if not data:
         return {"paid": False}
 
-    
-
     paid = check_payment(
-        data["address"],
-        data["price"]
+        data.address,
+        data.price
     )
 
     return {
@@ -435,16 +454,18 @@ if not data:
 @app.get("/download/{file_id}")
 def download(file_id: str):
 
-    if file_id not in FILES_DB:
-        return {"error":"not found"}
+    db = SessionLocal()
 
-    data = FILES_DB[file_id]
+    data = db.query(FileData).filter_by(
+        id=file_id
+    ).first()
+
+    if not data:
+        return {"error":"not found"}
 
     path = os.path.join(
         UPLOAD_DIR,
-        data["filename"]
+        data.filename
     )
-
-    from fastapi.responses import FileResponse
 
     return FileResponse(path)
