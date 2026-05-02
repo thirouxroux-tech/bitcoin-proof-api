@@ -1,3 +1,13 @@
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String
+)
+
+from sqlalchemy.orm import (
+    declarative_base,
+    sessionmaker
+)
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
 
@@ -11,7 +21,31 @@ import base64
 from io import BytesIO
 
 app = FastAPI()
+# ==================================================
+# DATABASE
+# ==================================================
 
+DATABASE_URL = "sqlite:///paywall.db"
+
+engine = create_engine(DATABASE_URL)
+
+SessionLocal = sessionmaker(bind=engine)
+
+Base = declarative_base()
+
+class FileData(Base):
+
+    __tablename__ = "files"
+
+    id = Column(String, primary_key=True)
+
+    filename = Column(String)
+
+    price = Column(String)
+
+    address = Column(String)
+
+Base.metadata.create_all(bind=engine)
 # ==================================================
 # CONFIG
 # ==================================================
@@ -22,7 +56,7 @@ UPLOAD_DIR = "uploads"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-FILES_DB = {}
+
 # ==================================================
 # CHECK BTC PAYMENT
 # ==================================================
@@ -214,11 +248,20 @@ async def create(
         len(FILES_DB)
     )
 
-    FILES_DB[file_id] = {
-        "filename": filename,
-        "price": price,
-        "address": address
-    }
+  new_file = FileData(
+
+    id=file_id,
+
+    filename=filename,
+
+    price=price,
+
+    address=address
+)
+
+db.add(new_file)
+
+db.commit()
 
     return HTMLResponse(f"""
 
@@ -247,7 +290,7 @@ async def create(
         >
         /pay/{file_id}
         </a>
-
+db = SessionLocal()
     </body>
 
     </html>
@@ -270,7 +313,7 @@ def pay(file_id: str):
         data["address"],
         data["price"]
     )
-
+db = SessionLocal()
     return HTMLResponse(f"""
 
     <html>
@@ -369,10 +412,12 @@ def pay(file_id: str):
 @app.get("/check/{file_id}")
 def check(file_id: str):
 
-    if file_id not in FILES_DB:
+    data = db.query(FileData).filter_by(id=file_id).first()
+
+if not data:
         return {"paid": False}
 
-    data = FILES_DB[file_id]
+    
 
     paid = check_payment(
         data["address"],
