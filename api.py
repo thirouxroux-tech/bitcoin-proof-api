@@ -127,77 +127,147 @@ def home():
     return """
 
     <!DOCTYPE html>
-    <html>
+<html>
 
-    <head>
+<head>
 
-    <title>LightningDrop</title>
+<title>LightningDrop</title>
 
-    <style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-    body{
-        background:#0f0f0f;
-        color:white;
-        font-family:Arial;
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        height:100vh;
-        margin:0;
-    }
+<style>
 
-    .card{
-        background:#171717;
-        padding:40px;
-        border-radius:20px;
-        width:420px;
-        text-align:center;
-    }
+body{
+    margin:0;
+    background:#0b0b0b;
+    color:white;
+    font-family:Arial;
+}
+
+.container{
+    width:90%;
+    max-width:1100px;
+    margin:auto;
+}
+
+.hero{
+    padding-top:80px;
+    padding-bottom:80px;
+    text-align:center;
+}
+
+.logo{
+    font-size:22px;
+    color:#f7931a;
+    font-weight:bold;
+    margin-bottom:40px;
+}
+
+h1{
+    font-size:64px;
+    margin-bottom:20px;
+    line-height:1.1;
+}
+
+.subtitle{
+    font-size:22px;
+    color:#999;
+    max-width:700px;
+    margin:auto;
+    margin-bottom:50px;
+}
+
+.card{
+    background:#171717;
+    padding:40px;
+    border-radius:24px;
+    max-width:500px;
+    margin:auto;
+}
+
+input{
+    width:100%;
+    padding:16px;
+    margin-bottom:20px;
+    border-radius:12px;
+    border:none;
+    background:#222;
+    color:white;
+    box-sizing:border-box;
+    font-size:16px;
+}
+
+button{
+    width:100%;
+    padding:18px;
+    border:none;
+    border-radius:14px;
+    background:#f7931a;
+    color:black;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.steps{
+    margin-top:120px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:30px;
+}
+
+.step{
+    background:#171717;
+    padding:30px;
+    border-radius:20px;
+}
+
+.step h3{
+    color:#f7931a;
+}
+
+.footer{
+    text-align:center;
+    color:#666;
+    padding:60px 0;
+}
+
+@media(max-width:700px){
 
     h1{
-        font-size:40px;
+        font-size:42px;
     }
 
-    p{
-        color:#999;
-        margin-bottom:30px;
-    }
-
-    input{
-        width:100%;
-        padding:14px;
-        margin-bottom:20px;
-        border-radius:10px;
-        border:none;
-        background:#222;
-        color:white;
-    }
-
-    button{
-        background:#f7931a;
-        color:black;
-        border:none;
-        padding:16px;
-        width:100%;
-        border-radius:12px;
+    .subtitle{
         font-size:18px;
-        cursor:pointer;
-        font-weight:bold;
     }
 
-    </style>
+}
 
-    </head>
+</style>
 
-    <body>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="hero">
+
+        <div class="logo">
+        ⚡ LightningDrop
+        </div>
+
+        <h1>
+        Instant Bitcoin Paywalls
+        </h1>
+
+        <div class="subtitle">
+        Upload a file, set a Bitcoin price,
+        and share your paywall instantly.
+        </div>
 
         <div class="card">
-
-            <h1>⚡ LightningDrop</h1>
-
-            <p>
-            Sell digital files with Bitcoin
-            </p>
 
             <form
             action="/create"
@@ -225,6 +295,46 @@ def home():
             </form>
 
         </div>
+
+        <div class="steps">
+
+            <div class="step">
+                <h3>1. Upload</h3>
+
+                <p>
+                Upload any digital file.
+                </p>
+            </div>
+
+            <div class="step">
+                <h3>2. Set Price</h3>
+
+                <p>
+                Choose your Bitcoin price instantly.
+                </p>
+            </div>
+
+            <div class="step">
+                <h3>3. Get Paid</h3>
+
+                <p>
+                Share your link and receive Bitcoin directly.
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="footer">
+    Powered by Bitcoin ⚡
+    </div>
+
+</div>
+
+</body>
+
+</html>
 
     </body>
 
