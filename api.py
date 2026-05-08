@@ -20,13 +20,12 @@ from sqlalchemy.orm import (
     declarative_base,
     sessionmaker
 )
-
 # ==================================================
 # FASTAPI
 # ==================================================
 
 app = FastAPI()
-
+VISITS = 0
 # ==================================================
 # CONFIG
 # ==================================================
@@ -123,7 +122,11 @@ def check_payment(address, expected_amount):
 
 @app.get("/", response_class=HTMLResponse)
 def home():
+global VISITS
 
+VISITS += 1
+
+print("VISITS:", VISITS)
     return """
 
     <!DOCTYPE html>
