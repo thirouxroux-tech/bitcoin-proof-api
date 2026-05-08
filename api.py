@@ -124,9 +124,7 @@ def check_payment(address, expected_amount):
 @app.get("/", response_class=HTMLResponse)
 def home():
 
-    global VISITS
-    VISITS += 1
-    print("VISITS:", VISITS)
+    print("HOME PAGE VISITED")
 
     return """
     <!DOCTYPE html>
