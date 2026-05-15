@@ -7,6 +7,7 @@ import requests
 import bip32utils
 import qrcode
 import base64
+import httpx
 
 from io import BytesIO
 
@@ -20,18 +21,20 @@ from sqlalchemy.orm import (
     declarative_base,
     sessionmaker
 )
+
 # ==================================================
 # FASTAPI
 # ==================================================
 
 app = FastAPI()
 
-VISITS = 0
 # ==================================================
 # CONFIG
 # ==================================================
 
-XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
+XPUB = "TON_XPUB_ICI"
+
+OPENNODE_API_KEY = "TA_CLE_OPENNODE"
 
 UPLOAD_DIR = "uploads"
 
@@ -64,6 +67,8 @@ class FileData(Base):
 
     address = Column(String)
 
+    lightning_invoice = Column(String)
+
 Base.metadata.create_all(bind=engine)
 
 # ==================================================
@@ -75,6 +80,37 @@ def generate_address(index):
     key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
 
     return key.ChildKey(index).Address()
+
+# ==================================================
+# LIGHTNING INVOICE
+# ==================================================
+
+async def create_lightning_invoice(amount_usd):
+
+    headers = {
+        "Authorization": OPENNODE_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "amount": amount_usd,
+        "currency": "USD"
+    }
+
+    async with httpx.AsyncClient() as client:
+
+        r = await client.post(
+            "https://api.opennode.com/v1/charges",
+            headers=headers,
+            json=payload
+        )
+
+        data = r.json()["data"]
+
+        return {
+            "invoice": data["lightning_invoice"]["payreq"],
+            "checkout_url": data["hosted_checkout"]
+        }
 
 # ==================================================
 # QR CODE
@@ -121,13 +157,18 @@ def check_payment(address, expected_amount):
 # HOME
 # ==================================================
 
+@app.head("/")
+def head_home():
+    return
+
 @app.get("/", response_class=HTMLResponse)
 def home():
 
     print("HOME PAGE VISITED")
 
     return """
-    <!DOCTYPE html>
+
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -337,11 +378,7 @@ button{
 
 </html>
 
-    </body>
-
-    </html>
-
-    """
+"""
 
 # ==================================================
 # CREATE PAYWALL
@@ -371,6 +408,8 @@ async def create(
         db.query(FileData).count()
     )
 
+    lightning = await create_lightning_invoice(1)
+
     new_file = FileData(
 
         id=file_id,
@@ -379,7 +418,9 @@ async def create(
 
         price=price,
 
-        address=address
+        address=address,
+
+        lightning_invoice=lightning["invoice"]
     )
 
     db.add(new_file)
@@ -427,6 +468,8 @@ async def create(
 @app.get("/pay/{file_id}", response_class=HTMLResponse)
 def pay(file_id: str):
 
+    print("PAYWALL VISITED:", file_id)
+
     db = SessionLocal()
 
     data = db.query(FileData).filter_by(
@@ -472,6 +515,24 @@ def pay(file_id: str):
         {data.address}
         </p>
 
+        <br>
+
+        <h3>⚡ Lightning Invoice</h3>
+
+        <textarea
+        style="
+        width:80%;
+        height:120px;
+        background:#222;
+        color:white;
+        border:none;
+        border-radius:12px;
+        padding:10px;
+        "
+        >
+        {data.lightning_invoice}
+        </textarea>
+
         <br><br>
 
         <button
@@ -494,13 +555,13 @@ def pay(file_id: str):
 
         <script>
 
-        async function checkPayment(){{
+        async function checkPayment(){
 
             let r = await fetch('/check/{file_id}')
 
             let d = await r.json()
 
-            if(d.paid){{
+            if(d.paid){
                 document.getElementById('status').innerHTML = `
                     <br><br>
 
@@ -514,16 +575,16 @@ def pay(file_id: str):
                     Download File
                     </a>
                 `
-            }}
+            }
 
-            else {{
+            else {
 
                 document.getElementById('status').innerHTML =
                 "<br><br>⏳ Waiting payment..."
 
-            }}
+            }
 
-        }}
+        }
 
         </script>
 
