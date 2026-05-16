@@ -23,7 +23,7 @@ app = FastAPI()
 # CONFIG
 # ==================================================
 
-XPUB = "TON_XPUB_ICI"
+XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
 
 UPLOAD_DIR = "uploads"
 
