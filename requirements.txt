@@ -1,2 +1,7 @@
 fastapi
 uvicorn
+requests
+bip32utils
+qrcode[pil]
+sqlalchemy
+python-multipart
