@@ -41,7 +41,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # DATABASE
 # ==================================================
 
-DATABASE_URL = "sqlite:///"
+DATABASE_URL = "sqlite:///paywall.db"
 
 engine = create_engine(
     DATABASE_URL,
