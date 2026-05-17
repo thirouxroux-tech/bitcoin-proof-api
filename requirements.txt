@@ -5,3 +5,4 @@ bip32utils
 qrcode[pil]
 sqlalchemy
 python-multipart
+httpx

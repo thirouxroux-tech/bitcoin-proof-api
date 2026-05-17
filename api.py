@@ -7,14 +7,23 @@ import requests
 import bip32utils
 import qrcode
 import base64
+import httpx
 
 from io import BytesIO
 
-from sqlalchemy import create_engine, Column, String
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String
+)
+
+from sqlalchemy.orm import (
+    declarative_base,
+    sessionmaker
+)
 
 # ==================================================
-# APP
+# FASTAPI
 # ==================================================
 
 app = FastAPI()
@@ -24,6 +33,8 @@ app = FastAPI()
 # ==================================================
 
 XPUB = "xpub6DRyLsBsY3pCnrRd9BSzrJp6rfGunGEuzDVMkRoKjuk4M1G9b8spxibBSe9eagCDp6ANVVR6u4HoTtPXUGbGNURMagwKBzvQcPtsHeixUyu"
+
+OPENNODE_API_KEY = "TA_CLE_OPENNODE"
 
 UPLOAD_DIR = "uploads"
 
@@ -56,6 +67,8 @@ class FileData(Base):
 
     address = Column(String)
 
+    lightning_invoice = Column(String)
+
 Base.metadata.create_all(bind=engine)
 
 # ==================================================
@@ -67,6 +80,37 @@ def generate_address(index):
     key = bip32utils.BIP32Key.fromExtendedKey(XPUB)
 
     return key.ChildKey(index).Address()
+
+# ==================================================
+# LIGHTNING INVOICE
+# ==================================================
+
+async def create_lightning_invoice(amount_usd):
+
+    headers = {
+        "Authorization": OPENNODE_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "amount": amount_usd,
+        "currency": "USD"
+    }
+
+    async with httpx.AsyncClient() as client:
+
+        r = await client.post(
+            "https://api.opennode.com/v1/charges",
+            headers=headers,
+            json=payload
+        )
+
+        data = r.json()["data"]
+
+        return {
+            "invoice": data["lightning_invoice"]["payreq"],
+            "checkout_url": data["hosted_checkout"]
+        }
 
 # ==================================================
 # QR CODE
@@ -87,7 +131,7 @@ def generate_qr(address, amount):
     ).decode()
 
 # ==================================================
-# PAYMENT CHECK
+# CHECK BTC PAYMENT
 # ==================================================
 
 def check_payment(address, expected_amount):
@@ -100,7 +144,7 @@ def check_payment(address, expected_amount):
 
         received = (
             data["chain_stats"]["funded_txo_sum"]
-            / 100000000
+            / 100_000_000
         )
 
         return received >= float(expected_amount)
@@ -113,6 +157,10 @@ def check_payment(address, expected_amount):
 # HOME
 # ==================================================
 
+@app.head("/")
+def head_home():
+    return
+
 @app.get("/", response_class=HTMLResponse)
 def home():
 
@@ -121,7 +169,6 @@ def home():
     return """
 
 <!DOCTYPE html>
-
 <html>
 
 <head>
@@ -141,30 +188,34 @@ body{
 
 .container{
     width:90%;
-    max-width:1000px;
+    max-width:1100px;
     margin:auto;
 }
 
 .hero{
     padding-top:80px;
+    padding-bottom:80px;
     text-align:center;
 }
 
 .logo{
-    font-size:24px;
+    font-size:22px;
     color:#f7931a;
     font-weight:bold;
     margin-bottom:40px;
 }
 
 h1{
-    font-size:60px;
+    font-size:64px;
     margin-bottom:20px;
+    line-height:1.1;
 }
 
 .subtitle{
-    color:#999;
     font-size:22px;
+    color:#999;
+    max-width:700px;
+    margin:auto;
     margin-bottom:50px;
 }
 
@@ -180,18 +231,19 @@ input{
     width:100%;
     padding:16px;
     margin-bottom:20px;
-    border:none;
     border-radius:12px;
+    border:none;
     background:#222;
     color:white;
     box-sizing:border-box;
+    font-size:16px;
 }
 
 button{
     width:100%;
     padding:18px;
     border:none;
-    border-radius:12px;
+    border-radius:14px;
     background:#f7931a;
     color:black;
     font-size:18px;
@@ -199,11 +251,39 @@ button{
     cursor:pointer;
 }
 
+.steps{
+    margin-top:120px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:30px;
+}
+
+.step{
+    background:#171717;
+    padding:30px;
+    border-radius:20px;
+}
+
+.step h3{
+    color:#f7931a;
+}
+
 .footer{
     text-align:center;
     color:#666;
-    margin-top:100px;
-    padding-bottom:40px;
+    padding:60px 0;
+}
+
+@media(max-width:700px){
+
+    h1{
+        font-size:42px;
+    }
+
+    .subtitle{
+        font-size:18px;
+    }
+
 }
 
 </style>
@@ -214,54 +294,83 @@ button{
 
 <div class="container">
 
-<div class="hero">
+    <div class="hero">
 
-<div class="logo">
-⚡ LightningDrop
-</div>
+        <div class="logo">
+        ⚡ LightningDrop
+        </div>
 
-<h1>
-Instant Bitcoin Paywalls
-</h1>
+        <h1>
+        Instant Bitcoin Paywalls
+        </h1>
 
-<div class="subtitle">
-Upload a file, set a Bitcoin price and share instantly.
-</div>
+        <div class="subtitle">
+        Upload a file, set a Bitcoin price,
+        and share your paywall instantly.
+        </div>
 
-<div class="card">
+        <div class="card">
 
-<form
-action="/create"
-method="post"
-enctype="multipart/form-data"
->
+            <form
+            action="/create"
+            method="post"
+            enctype="multipart/form-data"
+            >
 
-<input
-type="file"
-name="file"
-required
->
+                <input
+                type="file"
+                name="file"
+                required
+                >
 
-<input
-type="text"
-name="price"
-placeholder="Price in BTC"
-required
->
+                <input
+                type="text"
+                name="price"
+                placeholder="Price in BTC"
+                required
+                >
 
-<button type="submit">
-Create Paywall
-</button>
+                <button type="submit">
+                Create Paywall
+                </button>
 
-</form>
+            </form>
 
-</div>
+        </div>
 
-<div class="footer">
-Powered by Bitcoin ⚡
-</div>
+        <div class="steps">
 
-</div>
+            <div class="step">
+                <h3>1. Upload</h3>
+
+                <p>
+                Upload any digital file.
+                </p>
+            </div>
+
+            <div class="step">
+                <h3>2. Set Price</h3>
+
+                <p>
+                Choose your Bitcoin price instantly.
+                </p>
+            </div>
+
+            <div class="step">
+                <h3>3. Get Paid</h3>
+
+                <p>
+                Share your link and receive Bitcoin directly.
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="footer">
+    Powered by Bitcoin ⚡
+    </div>
 
 </div>
 
@@ -272,7 +381,7 @@ Powered by Bitcoin ⚡
 """
 
 # ==================================================
-# CREATE
+# CREATE PAYWALL
 # ==================================================
 
 @app.post("/create")
@@ -293,12 +402,13 @@ async def create(
     )
 
     with open(filepath, "wb") as f:
-
         f.write(await file.read())
 
     address = generate_address(
         db.query(FileData).count()
     )
+
+    lightning = await create_lightning_invoice(1)
 
     new_file = FileData(
 
@@ -308,7 +418,9 @@ async def create(
 
         price=price,
 
-        address=address
+        address=address,
+
+        lightning_invoice=lightning["invoice"]
     )
 
     db.add(new_file)
@@ -327,21 +439,21 @@ async def create(
         padding-top:100px;
     ">
 
-    <h1>✅ Paywall Created</h1>
+        <h1>✅ Paywall Created</h1>
 
-    <p>
-    Share this link:
-    </p>
+        <p>
+        Share this link:
+        </p>
 
-    <a
-    href="/pay/{file_id}"
-    style="
-        color:#f7931a;
-        font-size:22px;
-    "
-    >
-    /pay/{file_id}
-    </a>
+        <a
+        href="/pay/{file_id}"
+        style="
+            color:#f7931a;
+            font-size:22px;
+        "
+        >
+        /pay/{file_id}
+        </a>
 
     </body>
 
@@ -384,82 +496,97 @@ def pay(file_id: str):
         padding-top:60px;
     ">
 
-    <h1>⚡ Bitcoin Payment</h1>
+        <h1>⚡ Bitcoin Payment</h1>
 
-    <h2>{data.price} BTC</h2>
+        <h2>{data.price} BTC</h2>
 
-    <img
-    width="250"
-    src="data:image/png;base64,{qr}"
-    >
+        <img
+        width="250"
+        src="data:image/png;base64,{qr}"
+        >
 
-    <p style="
+        <p style="
+            width:80%;
+            margin:auto;
+            margin-top:30px;
+            color:#999;
+            word-break:break-all;
+        ">
+        {data.address}
+        </p>
+
+        <br>
+
+        <h3>⚡ Lightning Invoice</h3>
+
+        <textarea
+        style="
         width:80%;
-        margin:auto;
-        margin-top:30px;
-        color:#999;
-        word-break:break-all;
-    ">
-    {data.address}
-    </p>
-
-    <br>
-
-    <button
-    onclick="checkPayment()"
-    style="
-        background:#f7931a;
-        color:black;
+        height:120px;
+        background:#222;
+        color:white;
         border:none;
-        padding:16px 24px;
         border-radius:12px;
-        font-size:18px;
-        font-weight:bold;
-        cursor:pointer;
-    "
-    >
-    Check Payment
-    </button>
+        padding:10px;
+        "
+        >
+        {data.lightning_invoice}
+        </textarea>
 
-    <div id="status"></div>
+        <br><br>
 
-    <script>
+        <button
+        onclick="checkPayment()"
+        style="
+            background:#f7931a;
+            color:black;
+            border:none;
+            padding:16px 24px;
+            border-radius:12px;
+            font-size:18px;
+            font-weight:bold;
+            cursor:pointer;
+        "
+        >
+        Check Payment
+        </button>
 
-    async function checkPayment(){
+        <div id="status"></div>
 
-        let r = await fetch("/check/{file_id}")
+        <script>
 
-        let d = await r.json()
+        async function checkPayment(){
 
-        if(d.paid){
+            let r = await fetch('/check/{file_id}')
 
-            document.getElementById("status").innerHTML = `
+            let d = await r.json()
 
-                <br><br>
+            if(d.paid){
+                document.getElementById('status').innerHTML = `
+                    <br><br>
 
-                <a
-                href="/download/{file_id}"
-                style="
-                    color:#f7931a;
-                    font-size:24px;
-                "
-                >
-                Download File
-                </a>
+                    <a
+                    href="/download/{file_id}"
+                    style="
+                        color:#f7931a;
+                        font-size:24px;
+                    "
+                    >
+                    Download File
+                    </a>
+                `
+            }
 
-            `
+            else {
+
+                document.getElementById('status').innerHTML =
+                "<br><br>⏳ Waiting payment..."
+
+            }
+
         }
 
-        else {
-
-            document.getElementById("status").innerHTML =
-            "<br><br>⏳ Waiting payment..."
-
-        }
-
-    }
-
-    </script>
+        </script>
 
     </body>
 
@@ -468,7 +595,7 @@ def pay(file_id: str):
     """)
 
 # ==================================================
-# CHECK
+# CHECK PAYMENT
 # ==================================================
 
 @app.get("/check/{file_id}")
@@ -493,7 +620,7 @@ def check(file_id: str):
     }
 
 # ==================================================
-# DOWNLOAD
+# DOWNLOAD FILE
 # ==================================================
 
 @app.get("/download/{file_id}")
@@ -506,7 +633,7 @@ def download(file_id: str):
     ).first()
 
     if not data:
-        return {"error": "not found"}
+        return {"error":"not found"}
 
     path = os.path.join(
         UPLOAD_DIR,
